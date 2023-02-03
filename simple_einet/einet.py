@@ -497,12 +497,15 @@ class EinetColumn(nn.Module):
 
 
 class PSPN(nn.Module):
-    def __init__(self, column_config: "EinetColumnConfig") -> None:
+    def __init__(self, column_config: "EinetColumnConfig", num_tasks: int = 0) -> None:
         super().__init__()
         self.column_config = column_config
 
         # Create Columns
-        self.columns = nn.ModuleList([])
+        columns = []
+        for task_index in range(num_tasks):
+            columns.append(EinetColumn(self.column_config, column_index=task_index))
+        self.columns = nn.ModuleList(columns)
 
     @property
     def num_tasks(self):
