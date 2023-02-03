@@ -25,6 +25,7 @@ class FactorizedLeaf(AbstractLayer):
         num_features_out: int,
         num_repetitions,
         base_leaf: AbstractLeaf,
+        seed: int= 0
     ):
         """
         Args:
@@ -32,6 +33,7 @@ class FactorizedLeaf(AbstractLayer):
             out_features (int): Number of output features/RVs.
             num_repetitions (int): Number of repetitions.
             base_leaf (Leaf): Base leaf distribution object.
+            seed (int): Random generator seed for repetitions.
         """
 
         super().__init__(num_features, num_repetitions=num_repetitions)
@@ -44,8 +46,10 @@ class FactorizedLeaf(AbstractLayer):
 
         # Construct mapping of scopes from in_features -> out_features
         scopes = torch.zeros(num_features, self.num_features_out, num_repetitions)
+        rand_gen = torch.Generator()
         for r in range(num_repetitions):
-            idxs = torch.randperm(n=self.num_features)
+            rand_gen.manual_seed(seed + r)
+            idxs = torch.randperm(n=self.num_features, generator=rand_gen)
             for o in range(num_features_out):
                 low = o * cardinality
                 high = (o + 1) * cardinality
