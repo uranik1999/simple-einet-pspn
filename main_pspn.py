@@ -13,12 +13,13 @@ import torch.nn as nn
 from simple_einet.distributions.normal import Normal
 from simple_einet.einet import PSPN, EinetColumnConfig
 
-
 import time
 
 
 def main():
     args = parse_args()
+
+    device = torch.device("cuda" if torch.cuda.is_available() and args.device == 'cuda' else "cpu")
 
     torch.manual_seed(args.seed)
 
@@ -53,7 +54,7 @@ def main():
             num_classes=args.task_size,
             seed=args.seed,
         )
-        pspn = PSPN(config)
+        pspn = PSPN(config).to(device)
 
         loss = nn.NLLLoss()
     else:
@@ -94,11 +95,15 @@ def main():
         if epoch_progress == 0:
             pspn.expand()
 
+        pspn.to(device)
         optimizer = torch.optim.Adam(pspn.parameters(), lr=lr)
 
         for epoch in range(epoch_progress, num_epochs):
             for batch, (data, labels) in enumerate(train_dataloader):
                 t = time.time()
+
+                data = data.to(device)
+                labels = labels.to(device)
 
                 # Training
                 optimizer.zero_grad()

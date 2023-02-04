@@ -11,6 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
 
     parser.add_argument("--load", type=str, default=None, help="Model name to be loaded (default: create new model)")
+    parser.add_argument("--device", type=str, default="cuda", help="Device to use ('cuda' for gpu, 'cpu' for cpu) (default: cuda)")
 
     parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
 
