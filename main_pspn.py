@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+from matplotlib import pyplot as plt
+
 from helper import get_datasets
 from helper import test
 from helper import evaluate
 from helper import printProgress
+from helper import parse_args
 
 import torch
 import torch.nn as nn
@@ -10,17 +13,54 @@ import torch.nn as nn
 from simple_einet.distributions.normal import Normal
 from simple_einet.einet import PSPN, EinetColumnConfig
 
+
 import time
 
 
 def main():
-    torch.manual_seed(0)
+    args = parse_args()
 
-    timestamp = 0
-    load_model = False
-    if load_model:
+    torch.manual_seed(args.seed)
+
+    if args.load is None:
+        model_name = str(int(time.time()))
+
+        # Training parameters
+        lr = args.lr
+        task_size = args.task_size
+        num_tasks = args.num_tasks
+        num_epochs = args.num_epochs
+        train_batch_size = args.train_batch_size
+        test_batch_size = args.val_batch_size
+
+        # Progress
+        losses = []
+        accuracies = []
+
+        epoch_progress = 0
+        task_progress = args.starting_task
+
+        # Model parameters
+        config = EinetColumnConfig(
+            num_channels=1,
+            num_features=28 * 28,
+            num_sums=args.num_sums,
+            num_leaves=args.num_leaves,
+            num_repetitions=args.num_repetitions,
+            depth=args.depth,
+            leaf_type=Normal,
+            leaf_kwargs={},
+            num_classes=args.task_size,
+            seed=args.seed,
+        )
+        pspn = PSPN(config)
+
+        loss = nn.NLLLoss()
+    else:
+        model_name = args.load
+
         # Select model
-        checkpoint = torch.load('./model/backup/pspn-backup_{}.pt'.format(timestamp))
+        checkpoint = torch.load('./model/backup/pspn-backup_{}.pt'.format(args.load))
 
         # Load training parameters
         lr = checkpoint['lr']
@@ -44,40 +84,6 @@ def main():
 
         # Load optimizer
         loss = checkpoint['loss']
-    else:
-        timestamp = int(timestamp)
-
-        # Training parameters
-        lr = 0.002
-        task_size = 2
-        num_tasks = 5
-        num_epochs = 100
-        train_batch_size = 200
-        test_batch_size = 500
-
-        # Progress
-        losses = []
-        accuracies = []
-
-        epoch_progress = 0
-        task_progress = 0
-
-        # Model parameters
-        config = EinetColumnConfig(
-            num_channels=1,
-            num_features=28 * 28,
-            num_sums=10,
-            num_leaves=10,
-            num_repetitions=3,
-            depth=4,
-            leaf_type=Normal,
-            leaf_kwargs={},
-            num_classes=2,
-            seed=0,
-        )
-        pspn = PSPN(config)
-
-        loss = nn.NLLLoss()
 
     for task in range(task_progress, num_tasks):
         # Get training data for current task
@@ -125,9 +131,9 @@ def main():
                 'losses': losses,
                 'accuracies': accuracies,
 
-                'epoch_progress': epoch,
+                'epoch_progress': epoch + 1,
                 'task_progress': task
-            }, './model/backup/pspn-backup_{}.pt'.format(int(timestamp)))
+            }, './model/backup/pspn-backup_{}.pt'.format(model_name))
 
         epoch_progress = 0
 

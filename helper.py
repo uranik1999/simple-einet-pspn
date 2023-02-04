@@ -5,6 +5,31 @@ from torch.utils.data import DataLoader
 
 from matplotlib import pyplot as plt
 
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
+
+    parser.add_argument("--load", type=str, default=None, help="Model name to be loaded (default: create new model)")
+
+    parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
+
+    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
+    parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
+    parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
+    parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs (default: 100)")
+    parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size during training (default: 128)")
+    parser.add_argument("--val-batch-size", type=int, default=512, help="Batch size during validation (default: 512)")
+
+    parser.add_argument("--num-sums", type=int, default=5, help="Number of sum nodes (default: 5)")
+    parser.add_argument("--num-leaves", type=int, default=5, help="Number of leave nodes (default: 5)")
+    parser.add_argument("--num-repetitions", type=int, default=1, help="Number of repetitions of the network (default: 1)")
+    parser.add_argument("--depth", type=int, default=3, help="Depth of the network (default: 3)")
+
+    parser.add_argument("--seed", type=int, default=0, help="Seed used for random generator (default: 0)")
+
+    return parser.parse_args()
+
 
 def get_datasets(task_size, task, train_batch_size, test_batch_size):
     from_class = task * task_size
