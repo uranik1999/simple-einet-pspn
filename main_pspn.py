@@ -95,7 +95,7 @@ def main():
         if epoch_progress == 0:
             pspn.expand()
 
-        pspn.to(device)
+        pspn = pspn.to(device)
         optimizer = torch.optim.Adam(pspn.parameters(), lr=lr)
 
         for epoch in range(epoch_progress, num_epochs):
