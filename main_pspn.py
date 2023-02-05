@@ -91,6 +91,7 @@ def main():
         train_dataloader, test_dataloader = get_datasets(task_size, task, train_batch_size, test_batch_size)
         batches = len(train_dataloader)
         test_data, test_labels = next(iter(test_dataloader))
+        test_data, test_labels = test_data.to(device), test_labels.to(device)
 
         if epoch_progress == 0:
             pspn.expand()
