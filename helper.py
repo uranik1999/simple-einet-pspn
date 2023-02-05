@@ -64,7 +64,7 @@ def test(model, data, labels):
     return correct_predictions / total_predictions
 
 
-def evaluate(losses, accuracies, epochs=None):
+def evaluate(losses, accuracies, epochs=None, tasks=None):
     epsilon = 0.15
     threshold = 0.95
 
@@ -76,7 +76,7 @@ def evaluate(losses, accuracies, epochs=None):
             min_loss = loss
             convergence_border = i
     reached_loss = sum(losses[convergence_border:]) / (len(losses) - convergence_border)
-    plotLoss(losses, reached_loss, convergence_border, epochs)
+    plotLoss(losses, reached_loss, convergence_border, epochs, tasks)
 
     # Accuracies
     classification_border = None
@@ -84,37 +84,52 @@ def evaluate(losses, accuracies, epochs=None):
         if acc > threshold:
             classification_border = i
             break
-    plotAccuracy(accuracies, threshold, classification_border, epochs)
+    plotAccuracy(accuracies, threshold, classification_border, epochs, tasks)
 
     return convergence_border, classification_border, accuracies[0], accuracies[-1], reached_loss
 
 
-def plotLoss(losses, min_loss, convergence_border, epochs=None):
+def plotLoss(losses, min_loss, convergence_border, epochs=None, tasks=None):
     plt.plot(losses)
-    if convergence_border != len(losses) - 1:
-        plt.axhline(y=min_loss, c='lightgrey')
-        plt.axvline(x=convergence_border, c='r')
-    plt.title('loss: ' + str(round(losses[-1], 3)))
+    # if convergence_border != len(losses) - 1:
+    #     plt.axhline(y=min_loss, c='lightgrey')
+    #     plt.axvline(x=convergence_border, c='r')
+    # plt.title('loss: ' + str(round(losses[-1], 3)))
 
     if epochs is not None:
-        epoch = len(losses) // epochs
-        for i in range(1, 1 + epochs):
-            plt.axvline(x=epoch * i, c='lightgrey')
+        epoch_size = (len(losses) // tasks) // epochs
+        task_size = len(losses) // tasks
+        for i in range(1, tasks):
+            # for j in range(0, epochs, (epochs // 4)):
+            #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
+            plt.axvline(x=i * task_size, c='black')
+
+        # ticks = range(1, len(losses), epoch_size * (epochs // 4))
+        # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
+        # plt.xticks(ticks, labels)
 
     plt.show()
 
 
-def plotAccuracy(accuracies, threshold, classification_border, epochs=None):
+def plotAccuracy(accuracies, threshold, classification_border, epochs=None, tasks=None):
     plt.plot(accuracies)
-    if classification_border is not None:
-        plt.axhline(y=threshold, c='lightgrey')
-        plt.axvline(x=classification_border, c='r')
-    plt.title('acc: ' + str(round(accuracies[-1], 2)))
-    plt.ylim([-0.1, 1.1])
+    # if classification_border is not None:
+    #     plt.axhline(y=threshold, c='lightgrey')
+    #     plt.axvline(x=classification_border, c='r')
+    # plt.title('acc: ' + str(round(accuracies[-1], 2)))
+    # plt.ylim([-0.1, 1.1])
 
-    epoch = len(accuracies) // epochs
-    for i in range(1, 1 + epochs):
-        plt.axvline(x=epoch * i, c='lightgrey')
+    if epochs is not None:
+        epoch_size = (len(accuracies) // tasks) // epochs
+        task_size = len(accuracies) // tasks
+        for i in range(1, tasks):
+            # for j in range(0, epochs, (epochs // 4)):
+            #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
+            plt.axvline(x=i * task_size, c='black')
+
+        # ticks = range(1, len(accuracies), epoch_size * (epochs // 4))
+        # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
+        # plt.xticks(ticks, labels)
 
     plt.show()
 

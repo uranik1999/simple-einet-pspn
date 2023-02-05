@@ -108,8 +108,11 @@ def main():
 
                 # Training
                 optimizer.zero_grad()
-                pred = pspn(data)
-                err = loss(pred, labels)
+                likelihood = pspn(data)
+                prior = -0.6931471805599453  # log(0.5) = p(y)
+                marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+                err = loss(posterior, labels)
                 err.backward()
                 optimizer.step()
 
