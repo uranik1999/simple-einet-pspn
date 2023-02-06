@@ -16,7 +16,7 @@ def parse_args():
 
     parser.add_argument("--name", type=str, default=None, help="Model name (default: timestamp)")
 
-    parser.add_argument("--num", type=str, default=1, help="Number of repetitions (default: 1)")
+    parser.add_argument("--num", type=int, default=1, help="Number of repetitions (default: 1)")
     parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
     parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
     parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
