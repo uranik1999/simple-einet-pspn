@@ -4,7 +4,7 @@ import torch
 
 # Load Model
 folder_name = "backup/"
-file_name = "pspn-backup_1675591142.pt"
+file_name = "pspn-backup_1675631428.pt"
 
 checkpoint = torch.load('./model/{}{}'.format(folder_name, file_name), map_location=torch.device('cpu'))
 

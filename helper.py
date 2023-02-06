@@ -13,12 +13,15 @@ def parse_args():
     parser.add_argument("--load", type=str, default=None, help="Model name to be loaded (default: create new model)")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use ('cuda' for gpu, 'cpu' for cpu) (default: cuda)")
 
-    parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
 
-    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
+    parser.add_argument("--name", type=str, default=None, help="Model name (default: timestamp)")
+
+    parser.add_argument("--num", type=str, default=1, help="Number of repetitions (default: 1)")
     parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
+    parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
     parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
     parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs (default: 100)")
+    parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
     parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size during training (default: 128)")
     parser.add_argument("--val-batch-size", type=int, default=512, help="Batch size during validation (default: 512)")
 
@@ -96,13 +99,13 @@ def plotLoss(losses, min_loss, convergence_border, epochs=None, tasks=None):
     #     plt.axvline(x=convergence_border, c='r')
     # plt.title('loss: ' + str(round(losses[-1], 3)))
 
-    if epochs is not None:
-        epoch_size = (len(losses) // tasks) // epochs
-        task_size = len(losses) // tasks
-        for i in range(1, tasks):
-            # for j in range(0, epochs, (epochs // 4)):
-            #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
-            plt.axvline(x=i * task_size, c='black')
+    # if epochs is not None:
+    #     epoch_size = (len(losses) // tasks) // epochs
+    #     task_size = len(losses) // tasks
+    #     for i in range(1, tasks):
+    #         # for j in range(0, epochs, (epochs // 4)):
+    #         #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
+    #         plt.axvline(x=i * task_size, c='black')
 
         # ticks = range(1, len(losses), epoch_size * (epochs // 4))
         # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
@@ -119,13 +122,13 @@ def plotAccuracy(accuracies, threshold, classification_border, epochs=None, task
     # plt.title('acc: ' + str(round(accuracies[-1], 2)))
     # plt.ylim([-0.1, 1.1])
 
-    if epochs is not None:
-        epoch_size = (len(accuracies) // tasks) // epochs
-        task_size = len(accuracies) // tasks
-        for i in range(1, tasks):
-            # for j in range(0, epochs, (epochs // 4)):
-            #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
-            plt.axvline(x=i * task_size, c='black')
+    # if epochs is not None:
+    #     epoch_size = (len(accuracies) // tasks) // epochs
+    #     task_size = len(accuracies) // tasks
+    #     for i in range(1, tasks):
+    #         # for j in range(0, epochs, (epochs // 4)):
+    #         #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
+    #         plt.axvline(x=i * task_size, c='black')
 
         # ticks = range(1, len(accuracies), epoch_size * (epochs // 4))
         # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
@@ -134,22 +137,26 @@ def plotAccuracy(accuracies, threshold, classification_border, epochs=None, task
     plt.show()
 
 
-def printProgress(time, acc, loss, batch, batches, epoch, epochs, task=None, tasks=None):
-    if task is None:
-        s = int(time * (epochs * batches - (epoch * batches + batch)))
-        prog = round((epoch * batches + batch) / (epochs * batches) * 100, 2)
-    else:
-        s = int(time * (tasks * epochs * batches - (task * epochs * batches + epoch * batches + batch)))
-        prog = round((task * epochs * batches + epoch * batches + batch) / (tasks * epochs * batches) * 100, 2)
+def printProgress(time, acc, loss, batch, batches, epoch, epochs, task=None, tasks=None, rep=None, num=None):
+    s = int(time * (num * tasks * epochs * batches - (rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch)))
+    prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (num * tasks * epochs * batches) * 100, 2)
+    # if task is None:
+    #     s = int(time * (epochs * batches - (epoch * batches + batch)))
+    #     prog = round((epoch * batches + batch) / (epochs * batches) * 100, 2)
+    # else:
+    #     s = int(time * (tasks * epochs * batches - (task * epochs * batches + epoch * batches + batch)))
+    #     prog = round((task * epochs * batches + epoch * batches + batch) / (tasks * epochs * batches) * 100, 2)
     h = s // 3600
     s = s % 3600
     m = s // 60
     s = s % 60
     itps = round(1 / time, 3)
     acc = round(acc * 100, 2)
-    if task is None:
-        print("\rEpoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-                .format(epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
-    else:
-        print("\rTask: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-            .format(task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+        .format(rep + 1, num ,task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    # if task is None:
+    #     print("\rEpoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+    #             .format(epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    # else:
+    #     print("\rTask: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+    #         .format(task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
