@@ -526,12 +526,12 @@ class PSPN(nn.Module):
         assert self.num_tasks > 0
 
         column_layer_outputs = []
-        for i, pspn in enumerate(self.columns):
+        for i, column in enumerate(self.columns):
             # if self.num_tasks > 1 and i < (self.num_tasks - 1):
             #     with torch.no_grad():
             #         lls, layer_outputs = pspn(x, prev_column_outputs=column_layer_outputs)
             # else:
-            lls, layer_outputs = pspn(x, prev_column_outputs=column_layer_outputs)
+            lls, layer_outputs = column(x, prev_column_outputs=column_layer_outputs)
             column_layer_outputs.append(layer_outputs)
 
         return lls

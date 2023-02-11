@@ -11,9 +11,36 @@ import torch
 import torch.nn as nn
 
 from simple_einet.distributions.normal import Normal
-from simple_einet.einet import PSPN, EinetColumnConfig
+from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 
 import time
+
+
+def columnSearch(model, column_config, dataloader, nr_search_batches, loss):
+    with torch.no_grad():
+
+        test_column = EinetColumn(column_config, column_index=0)  # column_index = 0 to exclude lateral connections
+
+        mean_losses = []
+        for column in reversed(model.columns):
+            test_column.leaf.load_state_dict(column.leaf.state_dict())
+
+            losses = []
+            for batch, (data, labels) in enumerate(dataloader):
+                if batch >= nr_search_batches:
+                    break
+                likelihood, _ = test_column(data, prev_column_outputs=[])
+                prior = -0.6931471805599453  # log(0.5) = p(y)
+                marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+                losses.append(loss(posterior, labels))
+
+            mean_loss = sum(losses) / len(losses)
+            mean_losses.append(mean_loss)
+
+        mean_losses = list(reversed(mean_losses))
+
+    return mean_losses.index(min(mean_losses))
 
 
 def main():
@@ -39,6 +66,8 @@ def main():
             lr = args.lr
             train_batch_size = args.train_batch_size
             test_batch_size = args.val_batch_size
+            column_search = args.column_search
+            num_search_batches = args.num_search_batches
 
             # Progress
             losses = []
@@ -77,6 +106,8 @@ def main():
             num_epochs = checkpoint['num_epochs']
             train_batch_size = checkpoint['train_batch_size']
             test_batch_size = checkpoint['test_batch_size']
+            column_search = checkpoint['column_search']
+            num_search_batches = checkpoint['num_search_batches']
 
             # Load progress
             losses = checkpoint['losses']
@@ -102,6 +133,10 @@ def main():
 
             if epoch_progress == 0:
                 pspn.expand()
+                if column_search and task != 0:
+                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss)
+                    pspn.columns[-1].leaf.load_state_dict(pspn.columns[column_index].leaf.state_dict())
+
                 losses.append([])
                 accuracies.append([])
 
@@ -141,6 +176,8 @@ def main():
                     'lr': lr,
                     'train_batch_size': train_batch_size,
                     'test_batch_size': train_batch_size,
+                    'column_search': column_search,
+                    'num_search_batches': num_search_batches,
 
                     'config': config,
                     'model_state_dict': pspn.state_dict(),
