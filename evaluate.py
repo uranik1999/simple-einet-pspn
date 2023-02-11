@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 
-from helper import evaluate
+import helper
 
 import torch
 
@@ -48,35 +48,21 @@ def evaluateAcc(accuracies):
 
 
 reps = 1
+name = "1676142381"
 
 for index in range(reps):
-    folder_name = "backup/"
+    if reps == 1:
+        file_name = "pspn-backup_{}.pt".format(name)
+    else:
+        file_name = "pspn-backup_{}_{}.pt".format(name, index)
 
-    # pspn
-    file_name = "pspn-backup_pspn_{}.pt".format(index)
+    checkpoint = torch.load('./model/backup/{}'.format(file_name), map_location=torch.device('cpu'))
 
-    checkpoint = torch.load('./model/{}{}'.format(folder_name, file_name), map_location=torch.device('cpu'))
+    losses = checkpoint['losses']
+    accuracies = checkpoint['accuracies']
 
-    pspn_losses = checkpoint['losses']
-    pspn_accuracies = checkpoint['accuracies']
-
-    pspn_num_epochs = checkpoint['num_epochs']
-    pspn_num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
-
-
-    # spn
-    file_name = "pspn-backup_spn_{}.pt".format(index)
-
-    checkpoint = torch.load('./model/{}{}'.format(folder_name, file_name), map_location=torch.device('cpu'))
-
-    spn_losses = checkpoint['losses']
-    spn_accuracies = checkpoint['accuracies']
-
-    spn_num_epochs = checkpoint['num_epochs']
-    spn_num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
-
-    losses = pspn_losses + spn_losses
-    accuracies = pspn_accuracies + spn_accuracies
+    num_epochs = checkpoint['num_epochs']
+    num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
 
     fig, axs = plt.subplots(3, 2, sharex=True)
     for i, ax in enumerate(axs.reshape(-1)):

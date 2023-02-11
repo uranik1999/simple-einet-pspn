@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument("--num", type=int, default=1, help="Number of repetitions (default: 1)")
     parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
     parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
+    parser.add_argument("--task-intersection", type=int, default=0, help="Number of classes adopted from previous task (default: 0)")
     parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
     parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs (default: 100)")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
@@ -26,7 +27,7 @@ def parse_args():
     parser.add_argument("--val-batch-size", type=int, default=2048, help="Batch size during validation (default: 512)")
     parser.add_argument('--column-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
 
-    parser.add_argument("--num_search_batches", type=int, default=1024, help="Number of batches to use for the column searching (default: 1024)")
+    parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 1024)")
 
     parser.add_argument("--num-sums", type=int, default=5, help="Number of sum nodes (default: 5)")
     parser.add_argument("--num-leaves", type=int, default=5, help="Number of leave nodes (default: 5)")
@@ -38,8 +39,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_datasets(task_size, task, train_batch_size, test_batch_size):
-    from_class = task * task_size
+def get_datasets(task_size, task_index, task_intersection, train_batch_size, test_batch_size):
+    from_class = task_index * (task_size - task_intersection)
     to_class = from_class + task_size
 
     train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
@@ -140,12 +141,15 @@ def plotAccuracy(accuracies, threshold, classification_border, epochs=None, task
     plt.show()
 
 
-def printProgress(time, acc, loss, batch, batches, epoch, epochs, task=None, tasks=None, rep=None, num=None):
-    s = int(time * (num * tasks * epochs * batches - (rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch)))
-    prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (num * tasks * epochs * batches) * 100, 2)
-    # if task is None:
-    #     s = int(time * (epochs * batches - (epoch * batches + batch)))
-    #     prog = round((epoch * batches + batch) / (epochs * batches) * 100, 2)
+def printProgress(time, acc, loss, batch, batches, epoch, epochs, rep, num, task=None, tasks=None):
+    if task is None:
+        s = int(time * (num * epochs * batches - (rep * epochs * batches + epoch * batches + batch)))
+        prog = round((rep * epochs * batches + epoch * batches + batch) / (num * epochs * batches) * 100, 2)
+    else:
+        s = int(time * (num * tasks * epochs * batches - (
+                    rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch)))
+        prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (
+                    num * tasks * epochs * batches) * 100, 2)
     # else:
     #     s = int(time * (tasks * epochs * batches - (task * epochs * batches + epoch * batches + batch)))
     #     prog = round((task * epochs * batches + epoch * batches + batch) / (tasks * epochs * batches) * 100, 2)
@@ -155,11 +159,9 @@ def printProgress(time, acc, loss, batch, batches, epoch, epochs, task=None, tas
     s = s % 60
     itps = round(1 / time, 3)
     acc = round(acc * 100, 2)
-    print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-        .format(rep + 1, num ,task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
-    # if task is None:
-    #     print("\rEpoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-    #             .format(epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
-    # else:
-    #     print("\rTask: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-    #         .format(task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    if task is None:
+        print("\rRep: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+            .format(rep + 1, num, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    else:
+        print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+            .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
