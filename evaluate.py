@@ -23,13 +23,13 @@ def plotAccuracy(plt, accuracies, threshold, classification_border):
 
 
 def evaluateLoss(losses):
-    epsilon = 0.15
+    threshold = 0.03
 
     # Losses
     min_loss = losses[0]
     convergence_border = 0
     for i, loss in enumerate(losses):
-        if loss < min_loss * (1 + epsilon):
+        if loss < min_loss - threshold:
             min_loss = loss
             convergence_border = i
     reached_loss = sum(losses[convergence_border:]) / (len(losses) - convergence_border)
@@ -47,8 +47,8 @@ def evaluateAcc(accuracies):
     return threshold, classification_border
 
 
-reps = 1
-name = "1676142381"
+reps = 10
+name = "ncs-1nti"
 
 for index in range(reps):
     if reps == 1:
@@ -64,14 +64,15 @@ for index in range(reps):
     num_epochs = checkpoint['num_epochs']
     num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
 
-    fig, axs = plt.subplots(3, 2, sharex=True)
+
+    fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
     for i, ax in enumerate(axs.reshape(-1)):
         min_loss, convergence_border = evaluateLoss(losses[i])
         plotLoss(ax, losses[i], min_loss, convergence_border)
 
     plt.show()
 
-    fig, axs = plt.subplots(3, 2, sharex=True)
+    fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
     for i, ax in enumerate(axs.reshape(-1)):
         threshold, classification_border = evaluateAcc(accuracies[i])
         plotAccuracy(ax, accuracies[i], threshold, classification_border)

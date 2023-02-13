@@ -92,6 +92,7 @@ def main():
             )
             pspn = PSPN(config).to(device)
             spn = EinetColumn(config, column_index=0).to(device)  # column_index = 0 to exclude lateral connections
+            test_spn = args.test_spn
 
             loss = nn.NLLLoss()
         else:
@@ -125,6 +126,7 @@ def main():
             pspn.load_state_dict(checkpoint['pspn_state_dict'])
             spn = EinetColumn(config, column_index=0).to(device)  # column_index = 0 to exclude lateral connections
             spn.load_state_dict(checkpoint['spn_state_dict'])
+            test_spn = checkpoint['test_spn']
 
             # Load optimizer
             loss = checkpoint['loss']
@@ -188,6 +190,7 @@ def main():
                     'config': config,
                     'pspn_state_dict': pspn.state_dict(),
                     'spn_state_dict': spn.state_dict(),
+                    'test_spn': test_spn,
 
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss,
@@ -201,72 +204,74 @@ def main():
 
             epoch_progress = 0
 
-        print()
+        if test_spn:
+            print()
 
-        if epoch_progress == 0:
-            losses.append([])
-            accuracies.append([])
+            if epoch_progress == 0:
+                losses.append([])
+                accuracies.append([])
 
-        optimizer = torch.optim.Adam(spn.parameters(), lr=lr)
+            optimizer = torch.optim.Adam(spn.parameters(), lr=lr)
 
-        train_dataloader, test_dataloader = get_datasets(task_size, num_tasks - 1, task_intersection, train_batch_size, test_batch_size)
-        batches = len(train_dataloader)
-        test_data, test_labels = next(iter(test_dataloader))
-        test_data, test_labels = test_data.to(device), test_labels.to(device)
+            train_dataloader, test_dataloader = get_datasets(task_size, num_tasks - 1, task_intersection, train_batch_size, test_batch_size)
+            batches = len(train_dataloader)
+            test_data, test_labels = next(iter(test_dataloader))
+            test_data, test_labels = test_data.to(device), test_labels.to(device)
 
-        for epoch in range(epoch_progress, num_epochs):
-            for batch, (data, labels) in enumerate(train_dataloader):
-                t = time.time()
+            for epoch in range(epoch_progress, num_epochs):
+                for batch, (data, labels) in enumerate(train_dataloader):
+                    t = time.time()
 
-                data = data.to(device)
-                labels = labels.to(device)
+                    data = data.to(device)
+                    labels = labels.to(device)
 
-                # Training
-                optimizer.zero_grad()
-                likelihood, _ = spn(data, prev_column_outputs=[])
-                prior = -0.6931471805599453  # log(0.5) = p(y)
-                marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
-                posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
-                err = loss(posterior, labels)
-                err.backward()
-                optimizer.step()
+                    # Training
+                    optimizer.zero_grad()
+                    likelihood, _ = spn(data, prev_column_outputs=[])
+                    prior = -0.6931471805599453  # log(0.5) = p(y)
+                    marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                    posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+                    err = loss(posterior, labels)
+                    err.backward()
+                    optimizer.step()
 
-                losses[-1].append(err.item())
-                accuracies[-1].append(test(pspn, test_data, test_labels))
+                    losses[-1].append(err.item())
+                    accuracies[-1].append(test(pspn, test_data, test_labels))
 
-                t = time.time() - t
+                    t = time.time() - t
 
-                printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num)
+                    printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num)
 
-            torch.save({
-                'num': num,
-                'task_size': task_size,
-                'starting_task': starting_task,
-                'task_intersection': task_intersection,
-                'num_tasks': num_tasks,
-                'num_epochs': num_epochs,
-                'lr': lr,
-                'train_batch_size': train_batch_size,
-                'test_batch_size': train_batch_size,
-                'column_search': column_search,
-                'num_search_batches': num_search_batches,
+                torch.save({
+                    'num': num,
+                    'task_size': task_size,
+                    'starting_task': starting_task,
+                    'task_intersection': task_intersection,
+                    'num_tasks': num_tasks,
+                    'num_epochs': num_epochs,
+                    'lr': lr,
+                    'train_batch_size': train_batch_size,
+                    'test_batch_size': train_batch_size,
+                    'column_search': column_search,
+                    'num_search_batches': num_search_batches,
 
-                'config': config,
-                'pspn_state_dict': pspn.state_dict(),
-                'spn_state_dict': spn.state_dict(),
+                    'config': config,
+                    'pspn_state_dict': pspn.state_dict(),
+                    'spn_state_dict': spn.state_dict(),
+                    'test_spn': test_spn,
 
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss,
 
-                'losses': losses,
-                'accuracies': accuracies,
+                    'losses': losses,
+                    'accuracies': accuracies,
 
-                'epoch_progress': epoch + 1,
-                'task_progress': task
-            }, './model/backup/pspn-backup_{}.pt'.format(model_name))
+                    'epoch_progress': epoch + 1,
+                    'task_progress': task
+                }, './model/backup/pspn-backup_{}.pt'.format(model_name))
 
-        print(model_name)
-        print()
+            print('\n' + model_name)
+            print()
 
 
 if __name__ == "__main__":

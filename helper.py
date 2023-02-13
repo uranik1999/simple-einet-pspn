@@ -26,11 +26,12 @@ def parse_args():
     parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size during training (default: 128)")
     parser.add_argument("--val-batch-size", type=int, default=2048, help="Batch size during validation (default: 512)")
     parser.add_argument('--column-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
+    parser.add_argument('--test-spn', action='store_true', default=False, help="Toggle the spn testing of final task (default: off)")
 
     parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 1024)")
 
     parser.add_argument("--num-sums", type=int, default=5, help="Number of sum nodes (default: 5)")
-    parser.add_argument("--num-leaves", type=int, default=5, help="Number of leave nodes (default: 5)")
+    parser.add_argument("--num-leaves", type=int, default=5, help="Number of leaf nodes (default: 5)")
     parser.add_argument("--num-repetitions", type=int, default=1, help="Number of repetitions of the network (default: 1)")
     parser.add_argument("--depth", type=int, default=3, help="Depth of the network (default: 3)")
 
