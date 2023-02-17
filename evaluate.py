@@ -1,83 +1,96 @@
 from matplotlib import pyplot as plt
 
-import helper
+from helper import analyseWeights
+from helper import evaluateAcc
+from helper import evaluateLoss
+from helper import plotAccuracy
+from helper import plotLoss
 
 import torch
 
+from simple_einet.einet import PSPN
 
-def plotLoss(plt, losses, min_loss, convergence_border):
-    plt.plot(losses)
+reps = 1
+#name = "ncs_nti"
+#name = "cs-nti"
+#name = "ncs_ti"
+name = "30r_cs_ti_d3"
 
-    if convergence_border != len(losses) - 1:
-        plt.axhline(y=min_loss, c='lightgrey')
-        plt.axvline(x=convergence_border, c='r')
-    plt.set_title('loss: ' + str(round(losses[-1], 3)))
+plot = True
+csv = False
 
+with open('csv/{}.csv'.format(name), 'a') as file:
+    if csv:
+        file.write('Accuracy (SPN); Accuracy (PSPN); Classification (SPN); Classification (PSPN); Loss (SPN); Loss (PSPN); Convergence (SPN); Convergence (PSPN)\n')
 
-def plotAccuracy(plt, accuracies, threshold, classification_border):
-    plt.plot(accuracies)
-    if classification_border is not None:
-        plt.axhline(y=threshold, c='lightgrey')
-        plt.axvline(x=classification_border, c='r')
-    plt.set_title('acc: ' + str(round(accuracies[-1], 2)))
+    for index in range(reps):
+        if reps == 1:
+            file_name = "pspn-backup_{}.pt".format(name)
+        else:
+            file_name = "pspn-backup_{}_{}.pt".format(name, index)
 
+        checkpoint = torch.load('./model/backup/{}'.format(file_name), map_location=torch.device('cpu'))
+        standard = torch.load('./model/backup/pspn-backup_30r_standard_d6_{}.pt'.format(index), map_location=torch.device('cpu'))
 
-def evaluateLoss(losses):
-    threshold = 0.03
+        config = checkpoint['config']
+        pspn = PSPN(config, checkpoint['task_progress'] + 1)
+        pspn.load_state_dict(checkpoint['pspn_state_dict'])
 
-    # Losses
-    min_loss = losses[0]
-    convergence_border = 0
-    for i, loss in enumerate(losses):
-        if loss < min_loss - threshold:
-            min_loss = loss
-            convergence_border = i
-    reached_loss = sum(losses[convergence_border:]) / (len(losses) - convergence_border)
-    return reached_loss, convergence_border
+        if plot: analyseWeights(pspn)
 
+        losses = checkpoint['losses']
+        #losses[-1] = standard['losses'][-1]
+        losses.append(standard['losses'][-1])
 
-def evaluateAcc(accuracies):
-    threshold = 0.95
-    # Accuracies
-    classification_border = None
-    for i, acc in enumerate(accuracies):
-        if acc > threshold:
-            classification_border = i
-            break
-    return threshold, classification_border
+        accuracies = checkpoint['accuracies']
+        #accuracies[-1] = standard['accuracies'][-1]
+        accuracies.append(standard['accuracies'][-1])
 
+        num_epochs = checkpoint['num_epochs']
+        num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
 
-reps = 10
-name = "ncs-1nti"
+        classification_borders = []
+        convergence_borders = []
+        if len(losses) == 1:
+            fig, ax = plt.subplots(1, 1, sharex=True)
+            min_loss, convergence_border = evaluateLoss(losses[0])
+            if plot:
+                plotLoss(ax, losses[0], min_loss, convergence_border)
+                plt.show()
 
-for index in range(reps):
-    if reps == 1:
-        file_name = "pspn-backup_{}.pt".format(name)
-    else:
-        file_name = "pspn-backup_{}_{}.pt".format(name, index)
+            fig, ax = plt.subplots(1, 1, sharex=True)
+            threshold, classification_border = evaluateAcc(accuracies[0])
+            if plot:
+                plotAccuracy(ax, accuracies[0], threshold, classification_border)
+                plt.show()
+        else:
+            if plot:
+                fig, axs = plt.subplots(len(losses) // 2, 2 + (len(losses) % 2), sharex=True)
+                for i, ax in enumerate(axs.reshape(-1)):
+                    min_loss, convergence_border = evaluateLoss(losses[i])
+                    convergence_borders.append(convergence_border)
+                    plotLoss(ax, losses[i], min_loss, convergence_border)
+                plt.show()
 
-    checkpoint = torch.load('./model/backup/{}'.format(file_name), map_location=torch.device('cpu'))
+                fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
+                for i, ax in enumerate(axs.reshape(-1)):
+                    threshold, classification_border = evaluateAcc(accuracies[i])
+                    classification_borders.append(classification_border)
+                    plotAccuracy(ax, accuracies[i], threshold, classification_border)
+                plt.show()
+            elif csv:
+                for i in range(len(losses)):
+                    min_loss, convergence_border = evaluateLoss(losses[i])
+                    convergence_borders.append(convergence_border)
 
-    losses = checkpoint['losses']
-    accuracies = checkpoint['accuracies']
+                    threshold, classification_border = evaluateAcc(accuracies[i])
+                    classification_borders.append(classification_border)
 
-    num_epochs = checkpoint['num_epochs']
-    num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
+        if csv:
+            file.write(str(round(accuracies[-1][-1], 3)).replace(".",",") + ";" + str(round(accuracies[-2][-1], 3)).replace(".",",") + ";" + \
+                       str(classification_borders[-1]) + ';' + str(classification_borders[-2]) + ';' + \
+                       str(round(losses[-1][-1], 5)).replace(".",",") + ';' + str(round(losses[-2][-1], 5)).replace(".",",") + ';' + \
+                       str(convergence_borders[-1]) + ';' + str(convergence_borders[-2]) + '\n')
 
-
-    fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
-    for i, ax in enumerate(axs.reshape(-1)):
-        min_loss, convergence_border = evaluateLoss(losses[i])
-        plotLoss(ax, losses[i], min_loss, convergence_border)
-
-    plt.show()
-
-    fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
-    for i, ax in enumerate(axs.reshape(-1)):
-        threshold, classification_border = evaluateAcc(accuracies[i])
-        plotAccuracy(ax, accuracies[i], threshold, classification_border)
-
-    plt.show()
-
-    input("Press Enter")
+        if plot: input("Press Enter")
 

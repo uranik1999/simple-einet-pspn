@@ -3,7 +3,6 @@ from matplotlib import pyplot as plt
 
 from helper import get_datasets
 from helper import test
-from helper import evaluate
 from helper import printProgress
 from helper import parse_args
 
@@ -16,14 +15,20 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(model, column_config, dataloader, nr_search_batches, loss):
+def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf_search, column_search):
     with torch.no_grad():
 
         test_column = EinetColumn(column_config, column_index=0)  # column_index = 0 to exclude lateral connections
 
         mean_losses = []
         for column in reversed(model.columns):
-            test_column.leaf.load_state_dict(column.leaf.state_dict())
+            if column_search:
+                column_state_dict = column.state_dict()
+                for i in range(len(column.layers)):
+                    column_state_dict['layers.{}.weights'.format(i)] = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                test_column.load_state_dict(column_state_dict)
+            elif leaf_search:
+                test_column.leaf.load_state_dict(column.leaf.state_dict())
 
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
@@ -67,8 +72,12 @@ def main():
             lr = args.lr
             train_batch_size = args.train_batch_size
             test_batch_size = args.val_batch_size
+            leaf_search = args.leaf_search
             column_search = args.column_search
             num_search_batches = args.num_search_batches
+            test_frequency = args.test_frequency
+
+            dataset = args.dataset
 
             # Progress
             losses = []
@@ -77,10 +86,16 @@ def main():
             epoch_progress = 0
             task_progress = starting_task
 
+            if dataset == 'mnist':
+                num_features = 28 * 28
+                num_channels = 1
+            else:
+                num_features = 32 * 32
+                num_channels = 3
             # Model parameters
             config = EinetColumnConfig(
-                num_channels=1,
-                num_features=28 * 28,
+                num_channels=num_channels,
+                num_features=num_features,
                 num_sums=args.num_sums,
                 num_leaves=args.num_leaves,
                 num_repetitions=args.num_repetitions,
@@ -110,8 +125,12 @@ def main():
             num_epochs = checkpoint['num_epochs']
             train_batch_size = checkpoint['train_batch_size']
             test_batch_size = checkpoint['test_batch_size']
+            leaf_search = checkpoint['leaf_search']
             column_search = checkpoint['column_search']
             num_search_batches = checkpoint['num_search_batches']
+            test_frequency = checkpoint['test_frequency']
+
+            dataset = checkpoint['dataset']
 
             # Load progress
             losses = checkpoint['losses']
@@ -133,15 +152,15 @@ def main():
 
         for task in range(task_progress, num_tasks):
             # Get training data for current task
-            train_dataloader, test_dataloader = get_datasets(task_size, task, task_intersection, train_batch_size, test_batch_size)
+            train_dataloader, test_dataloader = get_datasets(dataset, task_size, task, task_intersection, train_batch_size, test_batch_size)
             batches = len(train_dataloader)
             test_data, test_labels = next(iter(test_dataloader))
             test_data, test_labels = test_data.to(device), test_labels.to(device)
 
             if epoch_progress == 0:
                 pspn.expand()
-                if column_search and task != 0:
-                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss)
+                if (column_search or leaf_search) and task != 0:
+                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss, leaf_search, column_search)
                     pspn.columns[-1].leaf.load_state_dict(pspn.columns[column_index].leaf.state_dict())
 
                 losses.append([])
@@ -167,12 +186,13 @@ def main():
                     err.backward()
                     optimizer.step()
 
-                    losses[-1].append(err.item())
-                    accuracies[-1].append(test(pspn, test_data, test_labels))
+                    if batch % test_frequency == 0:
+                        losses[-1].append(err.item())
+                        accuracies[-1].append(test(pspn, test_data, test_labels))
 
-                    t = time.time() - t
+                        t = time.time() - t
 
-                    printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
+                        printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
 
                 torch.save({
                     'num': num,
@@ -184,8 +204,12 @@ def main():
                     'lr': lr,
                     'train_batch_size': train_batch_size,
                     'test_batch_size': train_batch_size,
+                    'leaf_search': leaf_search,
                     'column_search': column_search,
                     'num_search_batches': num_search_batches,
+                    'test_frequency': test_frequency,
+
+                    'dataset': dataset,
 
                     'config': config,
                     'pspn_state_dict': pspn.state_dict(),
@@ -252,8 +276,12 @@ def main():
                     'lr': lr,
                     'train_batch_size': train_batch_size,
                     'test_batch_size': train_batch_size,
+                    'leaf_search': leaf_search,
                     'column_search': column_search,
                     'num_search_batches': num_search_batches,
+                    'test_frequency': test_frequency,
+
+                    'dataset': dataset,
 
                     'config': config,
                     'pspn_state_dict': pspn.state_dict(),

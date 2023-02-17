@@ -7,28 +7,59 @@ from matplotlib import pyplot as plt
 
 import argparse
 
+
+def analyseWeights(model):
+    pspn_weights = []
+    for current_column in model.columns:
+        pspn_weights.append([])
+        for i, layer in enumerate(current_column.layers):
+            pspn_weights[-1].append([])
+            for j in range(layer.column_index + 1):
+                pspn_weights[-1][i].append(
+                    torch.sum(layer.weights[:, j * layer.num_sums_in:(j + 1) * layer.num_sums_in, :, :]))
+
+    for column in range(model.num_tasks):
+        plt.axvline(x=column, c='lightgrey', linewidth=30)
+        plt.plot(column, -1, 'ko', markersize=20)
+
+    for i, column_weights in enumerate(pspn_weights):
+        column_weights = torch.tensor(column_weights)
+        column_weight_distributions = torch.nn.functional.softmax(column_weights, dim=-1).tolist()
+
+        for row, weights in enumerate(column_weight_distributions):
+            for column, weight in enumerate(weights):
+                plt.plot(column, row, 'ko', markersize=20)
+                plt.plot([column, i], [row - 1, row], c='k', alpha=weight, linewidth=weight * 3)
+
+
+    plt.show()
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
 
     parser.add_argument("--load", type=str, default=None, help="Model name to be loaded (default: create new model)")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use ('cuda' for gpu, 'cpu' for cpu) (default: cuda)")
 
-
     parser.add_argument("--name", type=str, default=None, help="Model name (default: timestamp)")
+
+    parser.add_argument("--test-frequency", type=int, default=10, help="Number of steps between testing during training (default: 10)")
+    parser.add_argument("--dataset", type=str, default='mnist', help="Options: mnist, svhn, cifar10 (default: mnist)")
 
     parser.add_argument("--num", type=int, default=1, help="Number of repetitions (default: 1)")
     parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
     parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
     parser.add_argument("--task-intersection", type=int, default=0, help="Number of classes adopted from previous task (default: 0)")
     parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
-    parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs (default: 100)")
+    parser.add_argument("--num-epochs", type=int, default=10, help="Number of training epochs (default: 100)")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
     parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size during training (default: 128)")
     parser.add_argument("--val-batch-size", type=int, default=2048, help="Batch size during validation (default: 512)")
+    parser.add_argument('--leaf-search', action='store_true', default=False, help="Toggle the leaf searching (default: off)")
     parser.add_argument('--column-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
     parser.add_argument('--test-spn', action='store_true', default=False, help="Toggle the spn testing of final task (default: off)")
 
-    parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 1024)")
+    parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
 
     parser.add_argument("--num-sums", type=int, default=5, help="Number of sum nodes (default: 5)")
     parser.add_argument("--num-leaves", type=int, default=5, help="Number of leaf nodes (default: 5)")
@@ -40,21 +71,47 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_datasets(task_size, task_index, task_intersection, train_batch_size, test_batch_size):
+def get_datasets(dataset, task_size, task_index, task_intersection, train_batch_size, test_batch_size):
     from_class = task_index * (task_size - task_intersection)
     to_class = from_class + task_size
 
-    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
-    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transforms.ToTensor())
+    if dataset == 'mnist':
+        train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
+        test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transforms.ToTensor())
 
-    train_idx = ((train_dataset.targets >= from_class) & (train_dataset.targets < to_class))
-    test_idx = ((test_dataset.targets >= from_class) & (test_dataset.targets < to_class))
+        train_idx = ((train_dataset.targets >= from_class) & (train_dataset.targets < to_class))
+        test_idx = ((test_dataset.targets >= from_class) & (test_dataset.targets < to_class))
 
-    train_dataset.data = train_dataset.data[train_idx]
-    test_dataset.data = test_dataset.data[test_idx]
+        train_dataset.data = train_dataset.data[train_idx]
+        test_dataset.data = test_dataset.data[test_idx]
 
-    train_dataset.targets = train_dataset.targets[train_idx] - from_class
-    test_dataset.targets = test_dataset.targets[test_idx] - from_class
+        train_dataset.targets = train_dataset.targets[train_idx] - from_class
+        test_dataset.targets = test_dataset.targets[test_idx] - from_class
+    elif dataset == 'svhn':
+        train_dataset = datasets.SVHN(root='./data', split='train', download=True, transform=transforms.ToTensor())
+        test_dataset = datasets.SVHN(root='./data', split='test', download=True, transform=transforms.ToTensor())
+
+        train_idx = ((train_dataset.labels >= from_class) & (train_dataset.labels < to_class))
+        test_idx = ((test_dataset.labels >= from_class) & (test_dataset.labels < to_class))
+
+        train_dataset.data = train_dataset.data[train_idx]
+        test_dataset.data = test_dataset.data[test_idx]
+
+        train_dataset.labels = train_dataset.labels[train_idx] - from_class
+        test_dataset.labels = test_dataset.labels[test_idx] - from_class
+
+    elif dataset == 'cifar10':
+        train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.ToTensor())
+        test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.ToTensor())
+
+        train_idx = ((torch.tensor(train_dataset.targets) >= from_class) & (torch.tensor(train_dataset.targets) < to_class))
+        test_idx = ((torch.tensor(test_dataset.targets) >= from_class) & (torch.tensor(test_dataset.targets) < to_class))
+
+        train_dataset.data = train_dataset.data[train_idx]
+        test_dataset.data = test_dataset.data[test_idx]
+
+        train_dataset.targets = torch.tensor(train_dataset.targets)[train_idx] - from_class
+        test_dataset.targets = torch.tensor(test_dataset.targets)[test_idx] - from_class
 
     train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
     test_dataloader = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=True)
@@ -72,74 +129,46 @@ def test(model, data, labels):
     return correct_predictions / total_predictions
 
 
-def evaluate(losses, accuracies, epochs=None, tasks=None):
-    epsilon = 0.15
-    threshold = 0.95
+def plotLoss(plt, losses, min_loss, convergence_border):
+    plt.plot(losses)
+
+    if convergence_border != len(losses) - 1:
+        plt.axhline(y=min_loss, c='lightgrey')
+        plt.axvline(x=convergence_border, c='r')
+    plt.set_title('loss: ' + str(round(losses[-1], 3)))
+
+
+def plotAccuracy(plt, accuracies, threshold, classification_border):
+    plt.plot(accuracies)
+    if classification_border is not None:
+        plt.axhline(y=threshold, c='lightgrey')
+        plt.axvline(x=classification_border, c='r')
+    plt.set_title('acc: ' + str(round(accuracies[-1], 2)))
+
+
+def evaluateLoss(losses):
+    threshold = 0.07
 
     # Losses
     min_loss = losses[0]
     convergence_border = 0
     for i, loss in enumerate(losses):
-        if loss < min_loss * (1 + epsilon):
+        if loss < min_loss - threshold:
             min_loss = loss
             convergence_border = i
     reached_loss = sum(losses[convergence_border:]) / (len(losses) - convergence_border)
-    plotLoss(losses, reached_loss, convergence_border, epochs, tasks)
+    return reached_loss, convergence_border
 
+
+def evaluateAcc(accuracies):
+    threshold = 0.95
     # Accuracies
     classification_border = None
     for i, acc in enumerate(accuracies):
         if acc > threshold:
             classification_border = i
             break
-    plotAccuracy(accuracies, threshold, classification_border, epochs, tasks)
-
-    return convergence_border, classification_border, accuracies[0], accuracies[-1], reached_loss
-
-
-def plotLoss(losses, min_loss, convergence_border, epochs=None, tasks=None):
-    plt.plot(losses)
-    # if convergence_border != len(losses) - 1:
-    #     plt.axhline(y=min_loss, c='lightgrey')
-    #     plt.axvline(x=convergence_border, c='r')
-    # plt.title('loss: ' + str(round(losses[-1], 3)))
-
-    # if epochs is not None:
-    #     epoch_size = (len(losses) // tasks) // epochs
-    #     task_size = len(losses) // tasks
-    #     for i in range(1, tasks):
-    #         # for j in range(0, epochs, (epochs // 4)):
-    #         #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
-    #         plt.axvline(x=i * task_size, c='black')
-
-        # ticks = range(1, len(losses), epoch_size * (epochs // 4))
-        # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
-        # plt.xticks(ticks, labels)
-
-    plt.show()
-
-
-def plotAccuracy(accuracies, threshold, classification_border, epochs=None, tasks=None):
-    plt.plot(accuracies)
-    # if classification_border is not None:
-    #     plt.axhline(y=threshold, c='lightgrey')
-    #     plt.axvline(x=classification_border, c='r')
-    # plt.title('acc: ' + str(round(accuracies[-1], 2)))
-    # plt.ylim([-0.1, 1.1])
-
-    # if epochs is not None:
-    #     epoch_size = (len(accuracies) // tasks) // epochs
-    #     task_size = len(accuracies) // tasks
-    #     for i in range(1, tasks):
-    #         # for j in range(0, epochs, (epochs // 4)):
-    #         #     plt.axvline(x=i * task_size + j * epoch_size, c='lightgrey')
-    #         plt.axvline(x=i * task_size, c='black')
-
-        # ticks = range(1, len(accuracies), epoch_size * (epochs // 4))
-        # labels = list(range(0, epochs, (epochs // 4))) * tasks + [epochs]
-        # plt.xticks(ticks, labels)
-
-    plt.show()
+    return threshold, classification_border
 
 
 def printProgress(time, acc, loss, batch, batches, epoch, epochs, rep, num, task=None, tasks=None):
