@@ -15,26 +15,49 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf_search, column_search):
+def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search):
     with torch.no_grad():
 
-        test_column = EinetColumn(column_config, column_index=0)  # column_index = 0 to exclude lateral connections
+        if column_search:
+            test_model = PSPN(column_config, num_tasks=model.num_tasks)
+            test_model.load_state_dict(model.state_dict())
+        else:
+            test_model = EinetColumn(column_config, column_index=0) # column_index = 0 to exclude lateral connections
 
         mean_losses = []
         for column in reversed(model.columns):
             if column_search:
                 column_state_dict = column.state_dict()
                 for i in range(len(column.layers)):
+                    weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
+                    weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
+                    lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :]
+                    vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                    missing_lateral_weights = torch.randn(
+                        column.layers[i].num_features // column.layers[i].cardinality,
+                        column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
+                        column.layers[i].num_sums_out,
+                        column.layers[i].num_repetitions,
+                    ) * weights_std + weights_mean
+                    column_state_dict['layers.{}.weights'.format(i)] = torch.cat((lateral_weights, missing_lateral_weights, vertical_weights), dim=1)
+                test_model.columns[-1].load_state_dict(column_state_dict)
+            elif isolated_column_search:
+                column_state_dict = column.state_dict()
+                for i in range(len(column.layers)):
                     column_state_dict['layers.{}.weights'.format(i)] = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
-                test_column.load_state_dict(column_state_dict)
+                test_model.load_state_dict(column_state_dict)
             elif leaf_search:
-                test_column.leaf.load_state_dict(column.leaf.state_dict())
+                test_model.leaf.load_state_dict(column.leaf.state_dict())
 
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
                 if batch >= nr_search_batches:
                     break
-                likelihood, _ = test_column(data, prev_column_outputs=[])
+                if column_search:
+                    likelihood = test_model(data)
+                else:
+                    likelihood, _ = test_model(data, prev_column_outputs=[])
+
                 prior = -0.6931471805599453  # log(0.5) = p(y)
                 marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                 posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
@@ -44,8 +67,44 @@ def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf
             mean_losses.append(mean_loss)
 
         mean_losses = list(reversed(mean_losses))
+        column_index = mean_losses.index(min(mean_losses))
+        column_index = 0
 
-    return mean_losses.index(min(mean_losses))
+        if column_search:
+            column = model.columns[column_index]
+            column_state_dict = column.state_dict()
+            for i in range(len(column.layers)):
+                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
+                weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
+                lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :]
+                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                missing_lateral_weights = torch.randn(
+                    column.layers[i].num_features // column.layers[i].cardinality,
+                    column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
+                    column.layers[i].num_sums_out,
+                    column.layers[i].num_repetitions,
+                ) * weights_std + weights_mean
+                column_state_dict['layers.{}.weights'.format(i)] = torch.cat(
+                    (lateral_weights, missing_lateral_weights, vertical_weights), dim=1)
+            model.columns[-1].load_state_dict(column_state_dict)
+        elif isolated_column_search:
+            column = model.columns[column_index]
+            column_state_dict = column.state_dict()
+            for i in range(len(column.layers)):
+                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
+                weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
+                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                missing_lateral_weights = torch.randn(
+                    column.layers[i].num_features // column.layers[i].cardinality,
+                    column.layers[i].num_sums_in * (model.num_tasks - 1),
+                    column.layers[i].num_sums_out,
+                    column.layers[i].num_repetitions,
+                ) * weights_std + weights_mean
+                column_state_dict['layers.{}.weights'.format(i)] = torch.cat((missing_lateral_weights, vertical_weights), dim=1)
+            model.columns[-1].load_state_dict(column_state_dict)
+        elif leaf_search:
+            model.columns[-1].leaf.load_state_dict(model.columns[column_index].leaf.state_dict())
+    return column_index
 
 
 def main():
@@ -73,6 +132,7 @@ def main():
             train_batch_size = args.train_batch_size
             test_batch_size = args.val_batch_size
             leaf_search = args.leaf_search
+            isolated_column_search = args.isolated_column_search
             column_search = args.column_search
             num_search_batches = args.num_search_batches
             test_frequency = args.test_frequency
@@ -82,6 +142,7 @@ def main():
             # Progress
             losses = []
             accuracies = []
+            columns = []
 
             epoch_progress = 0
             task_progress = starting_task
@@ -126,6 +187,7 @@ def main():
             train_batch_size = checkpoint['train_batch_size']
             test_batch_size = checkpoint['test_batch_size']
             leaf_search = checkpoint['leaf_search']
+            isolated_column_search = checkpoint['isolated_column_search']
             column_search = checkpoint['column_search']
             num_search_batches = checkpoint['num_search_batches']
             test_frequency = checkpoint['test_frequency']
@@ -135,6 +197,7 @@ def main():
             # Load progress
             losses = checkpoint['losses']
             accuracies = checkpoint['accuracies']
+            columns = checkpoint['columns']
 
             epoch_progress = checkpoint['epoch_progress']
             task_progress = checkpoint['task_progress']
@@ -159,9 +222,9 @@ def main():
 
             if epoch_progress == 0:
                 pspn.expand()
-                if (column_search or leaf_search) and task != 0:
-                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss, leaf_search, column_search)
-                    pspn.columns[-1].leaf.load_state_dict(pspn.columns[column_index].leaf.state_dict())
+                if (column_search or leaf_search or isolated_column_search) and task != 0:
+                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search)
+                    columns.append(column_index)
 
                 losses.append([])
                 accuracies.append([])
@@ -205,6 +268,7 @@ def main():
                     'train_batch_size': train_batch_size,
                     'test_batch_size': train_batch_size,
                     'leaf_search': leaf_search,
+                    'isolated_column_search': isolated_column_search,
                     'column_search': column_search,
                     'num_search_batches': num_search_batches,
                     'test_frequency': test_frequency,
@@ -221,6 +285,7 @@ def main():
 
                     'losses': losses,
                     'accuracies': accuracies,
+                    'columns': columns,
 
                     'epoch_progress': epoch + 1,
                     'task_progress': task
@@ -277,6 +342,7 @@ def main():
                     'train_batch_size': train_batch_size,
                     'test_batch_size': train_batch_size,
                     'leaf_search': leaf_search,
+                    'isolated_column_search': isolated_column_search,
                     'column_search': column_search,
                     'num_search_batches': num_search_batches,
                     'test_frequency': test_frequency,
@@ -293,6 +359,7 @@ def main():
 
                     'losses': losses,
                     'accuracies': accuracies,
+                    'columns': columns,
 
                     'epoch_progress': epoch + 1,
                     'task_progress': task

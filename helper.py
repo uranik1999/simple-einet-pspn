@@ -2,24 +2,29 @@ import torch
 import torchvision.datasets as datasets
 from torchvision import transforms
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 from matplotlib import pyplot as plt
 
 import argparse
 
 
-def analyseWeights(model):
+def analyseWeights(model, columns=None):
     pspn_weights = []
     for current_column in model.columns:
         pspn_weights.append([])
         for i, layer in enumerate(current_column.layers):
+            layer_weights = F.softmax(layer.weights)
             pspn_weights[-1].append([])
             for j in range(layer.column_index + 1):
                 pspn_weights[-1][i].append(
-                    torch.sum(layer.weights[:, j * layer.num_sums_in:(j + 1) * layer.num_sums_in, :, :]))
+                    torch.sum(layer_weights[:, j * layer.num_sums_in:(j + 1) * layer.num_sums_in, :, :])
+                )
 
     for column in range(model.num_tasks):
         plt.axvline(x=column, c='lightgrey', linewidth=30)
+        if columns:
+            plt.annotate(column, -2, str(columns[column]), ha='center', va='center', size=15)
         plt.plot(column, -1, 'ko', markersize=20)
 
     for i, column_weights in enumerate(pspn_weights):
@@ -50,21 +55,22 @@ def parse_args():
     parser.add_argument("--task-size", type=int, default=2, help="Number of classes per task (default: 2)")
     parser.add_argument("--starting-task", type=int, default=0, help="Index of first task (default: 0)")
     parser.add_argument("--task-intersection", type=int, default=0, help="Number of classes adopted from previous task (default: 0)")
-    parser.add_argument("--num-tasks", type=int, default=5, help="Number of tasks (default: 5)")
-    parser.add_argument("--num-epochs", type=int, default=10, help="Number of training epochs (default: 100)")
+    parser.add_argument("--num-tasks", type=int, default=2, help="Number of tasks (default: 5)")
+    parser.add_argument("--num-epochs", type=int, default=3, help="Number of training epochs (default: 100)")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate (default: 0.01)")
     parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size during training (default: 128)")
     parser.add_argument("--val-batch-size", type=int, default=2048, help="Batch size during validation (default: 512)")
     parser.add_argument('--leaf-search', action='store_true', default=False, help="Toggle the leaf searching (default: off)")
-    parser.add_argument('--column-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
+    parser.add_argument('--isolated-column-search', action='store_true', default=False, help="Toggle the isolated column searching (default: off)")
+    parser.add_argument('--column-search', action='store_true', default=True, help="Toggle the column searching (default: off)")
     parser.add_argument('--test-spn', action='store_true', default=False, help="Toggle the spn testing of final task (default: off)")
 
     parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
 
-    parser.add_argument("--num-sums", type=int, default=5, help="Number of sum nodes (default: 5)")
-    parser.add_argument("--num-leaves", type=int, default=5, help="Number of leaf nodes (default: 5)")
+    parser.add_argument("--num-sums", type=int, default=3, help="Number of sum nodes (default: 5)")
+    parser.add_argument("--num-leaves", type=int, default=3, help="Number of leaf nodes (default: 5)")
     parser.add_argument("--num-repetitions", type=int, default=1, help="Number of repetitions of the network (default: 1)")
-    parser.add_argument("--depth", type=int, default=3, help="Depth of the network (default: 3)")
+    parser.add_argument("--depth", type=int, default=2, help="Depth of the network (default: 3)")
 
     parser.add_argument("--seed", type=int, default=0, help="Seed used for random generator (default: 0)")
 

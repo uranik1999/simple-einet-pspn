@@ -8,13 +8,38 @@ from helper import plotLoss
 
 import torch
 
-from simple_einet.einet import PSPN
+from simple_einet.distributions.normal import Normal
+from simple_einet.einet import PSPN, EinetColumnConfig
+
+# config = EinetColumnConfig(
+#     num_channels=3,
+#     num_features=32*32,
+#     num_sums=15,
+#     num_leaves=15,
+#     num_repetitions=3,
+#     depth=5,
+#     leaf_type=Normal,
+#     leaf_kwargs={},
+#     num_classes=5,
+#     seed=0,
+# )
+# pspn = PSPN(config)
+# pspn.expand()
+# pspn.expand()
+# analyseWeights(pspn)
+#
 
 reps = 1
 #name = "ncs_nti"
 #name = "cs-nti"
 #name = "ncs_ti"
 name = "30r_cs_ti_d3"
+
+intersection_type = '2ti'
+search_type = 'cs'
+
+type = intersection_type + '_' + search_type
+name = "100_2t5s_svhn_{}_15_15_3_5".format(type)
 
 plot = True
 csv = False
@@ -29,8 +54,10 @@ with open('csv/{}.csv'.format(name), 'a') as file:
         else:
             file_name = "pspn-backup_{}_{}.pt".format(name, index)
 
+        spn_file_name = file_name.replace(search_type, "spn")
+
         checkpoint = torch.load('./model/backup/{}'.format(file_name), map_location=torch.device('cpu'))
-        standard = torch.load('./model/backup/pspn-backup_30r_standard_d6_{}.pt'.format(index), map_location=torch.device('cpu'))
+        standard = torch.load('./model/backup/{}'.format(spn_file_name), map_location=torch.device('cpu'))
 
         config = checkpoint['config']
         pspn = PSPN(config, checkpoint['task_progress'] + 1)
@@ -92,5 +119,5 @@ with open('csv/{}.csv'.format(name), 'a') as file:
                        str(round(losses[-1][-1], 5)).replace(".",",") + ';' + str(round(losses[-2][-1], 5)).replace(".",",") + ';' + \
                        str(convergence_borders[-1]) + ';' + str(convergence_borders[-2]) + '\n')
 
-        if plot: input("Press Enter")
+        if reps > 1 and plot: input("Press Enter")
 
