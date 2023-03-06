@@ -87,7 +87,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                     column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
                     column.layers[i].num_sums_out,
                     column.layers[i].num_repetitions,
-                ) * weights_std + weights_mean
+                    device=device) * weights_std + weights_mean
                 column_state_dict['layers.{}.weights'.format(i)] = torch.cat(
                     (lateral_weights, missing_lateral_weights, vertical_weights), dim=1)
             model.columns[-1].load_state_dict(column_state_dict)
@@ -103,7 +103,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                     column.layers[i].num_sums_in * (model.num_tasks - 1),
                     column.layers[i].num_sums_out,
                     column.layers[i].num_repetitions,
-                ) * weights_std + weights_mean
+                    device=device) * weights_std + weights_mean
                 column_state_dict['layers.{}.weights'.format(i)] = torch.cat((missing_lateral_weights, vertical_weights), dim=1)
             model.columns[-1].load_state_dict(column_state_dict)
         elif leaf_search:
