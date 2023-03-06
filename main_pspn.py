@@ -29,10 +29,10 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             if column_search:
                 column_state_dict = column.state_dict()
                 for i in range(len(column.layers)):
-                    weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
-                    weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
-                    lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :]
-                    vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                    weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean().to(device)
+                    weights_std = column_state_dict['layers.{}.weights'.format(i)].std().to(device)
+                    lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :].to(device)
+                    vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :].to(device)
                     missing_lateral_weights = torch.randn(
                         column.layers[i].num_features // column.layers[i].cardinality,
                         column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
@@ -78,10 +78,10 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             column = model.columns[column_index]
             column_state_dict = column.state_dict()
             for i in range(len(column.layers)):
-                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
-                weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
-                lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :]
-                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean().to(device)
+                weights_std = column_state_dict['layers.{}.weights'.format(i)].std().to(device)
+                lateral_weights = column_state_dict['layers.{}.weights'.format(i)][:, :-column.layers[i].num_sums_in, :, :].to(device)
+                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :].to(device)
                 missing_lateral_weights = torch.randn(
                     column.layers[i].num_features // column.layers[i].cardinality,
                     column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
@@ -95,9 +95,9 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             column = model.columns[column_index]
             column_state_dict = column.state_dict()
             for i in range(len(column.layers)):
-                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean()
-                weights_std = column_state_dict['layers.{}.weights'.format(i)].std()
-                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :]
+                weights_mean = column_state_dict['layers.{}.weights'.format(i)].mean().to(device)
+                weights_std = column_state_dict['layers.{}.weights'.format(i)].std().to(device)
+                vertical_weights = column_state_dict['layers.{}.weights'.format(i)][:, -column.layers[i].num_sums_in:, :, :].to(device)
                 missing_lateral_weights = torch.randn(
                     column.layers[i].num_features // column.layers[i].cardinality,
                     column.layers[i].num_sums_in * (model.num_tasks - 1),
