@@ -15,14 +15,14 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search):
+def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search):
     with torch.no_grad():
 
         if column_search:
-            test_model = PSPN(column_config, num_tasks=model.num_tasks)
+            test_model = PSPN(column_config, num_tasks=model.num_tasks).to(device)
             test_model.load_state_dict(model.state_dict())
         else:
-            test_model = EinetColumn(column_config, column_index=0) # column_index = 0 to exclude lateral connections
+            test_model = EinetColumn(column_config, column_index=0).to(device) # column_index = 0 to exclude lateral connections
 
         mean_losses = []
         for column in reversed(model.columns):
@@ -38,7 +38,7 @@ def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf
                         column.layers[i].num_sums_in * (model.num_tasks - column.layers[i].column_index - 1),
                         column.layers[i].num_sums_out,
                         column.layers[i].num_repetitions,
-                    ) * weights_std + weights_mean
+                        device=device) * weights_std + weights_mean
                     column_state_dict['layers.{}.weights'.format(i)] = torch.cat((lateral_weights, missing_lateral_weights, vertical_weights), dim=1)
                 test_model.columns[-1].load_state_dict(column_state_dict)
             elif isolated_column_search:
@@ -51,6 +51,10 @@ def columnSearch(model, column_config, dataloader, nr_search_batches, loss, leaf
 
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
+
+                data = data.to(device)
+                labels = labels.to(device)
+
                 if batch >= nr_search_batches:
                     break
                 if column_search:
