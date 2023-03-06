@@ -227,7 +227,7 @@ def main():
             if epoch_progress == 0:
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
-                    column_index = columnSearch(pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search)
+                    column_index = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search)
                     columns.append(column_index)
 
                 losses.append([])
