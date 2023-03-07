@@ -72,7 +72,6 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
         mean_losses = list(reversed(mean_losses))
         column_index = mean_losses.index(min(mean_losses))
-        column_index = 0
 
         if column_search:
             column = model.columns[column_index]

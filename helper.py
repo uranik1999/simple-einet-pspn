@@ -14,7 +14,7 @@ def analyseWeights(model, columns=None):
     for current_column in model.columns:
         pspn_weights.append([])
         for i, layer in enumerate(current_column.layers):
-            layer_weights = F.softmax(layer.weights)
+            layer_weights = F.softmax(layer.weights, dim=1)
             pspn_weights[-1].append([])
             for j in range(layer.column_index + 1):
                 pspn_weights[-1][i].append(
@@ -23,13 +23,14 @@ def analyseWeights(model, columns=None):
 
     for column in range(model.num_tasks):
         plt.axvline(x=column, c='lightgrey', linewidth=30)
-        if columns:
-            plt.annotate(column, -2, str(columns[column]), ha='center', va='center', size=15)
+        if columns and len(columns) > 0 and column > 0:
+            plt.annotate(str(columns[column - 1]), (column, -2), ha='center', va='center', size=15)
         plt.plot(column, -1, 'ko', markersize=20)
+        plt.plot(column, -2, 'wo', markersize=20)
 
     for i, column_weights in enumerate(pspn_weights):
         column_weights = torch.tensor(column_weights)
-        column_weight_distributions = torch.nn.functional.softmax(column_weights, dim=-1).tolist()
+        column_weight_distributions = F.softmax(column_weights, dim=-1).tolist()
 
         for row, weights in enumerate(column_weight_distributions):
             for column, weight in enumerate(weights):
