@@ -314,7 +314,6 @@ def main():
 
                         printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
 
-                print()
                 torch.save({
                     'num': num,
                     'task_size': task_size,
@@ -352,6 +351,7 @@ def main():
                     'task_progress': task
                 }, './model/backup/pspn-backup_{}.pt'.format(model_name))
 
+            print()
             epoch_progress = 0
 
         if test_spn:
