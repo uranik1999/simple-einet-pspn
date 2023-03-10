@@ -26,6 +26,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
         mean_losses = []
         for column in reversed(model.columns):
+            print("\rSearching Columns: Building Column {}".format(column))
             if column_search:
                 column_state_dict = column.state_dict()
                 for i in range(len(column.layers)):
@@ -76,7 +77,11 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                             err = loss(posterior, labels)
                             err.backward()
                             optimizer.step()
+
+                            print("\rSearching Columns: Training Column {} - Batch {} / {} - Loss {}".format(column, total_batches + batch, nr_training_batches, err.item()))
+
                         total_batches += batch
+            print()
 
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
@@ -96,11 +101,21 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
                 losses.append(loss(posterior, labels))
 
+                print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column,
+                                                                                                total_batches + batch,
+                                                                                                nr_training_batches,
+                                                                                                err.item()))
+
             mean_loss = sum(losses) / len(losses)
             mean_losses.append(mean_loss)
 
+            print("\rSearching Columns: Tested Column {} - Mean Loss {}".format(column, mean_loss))
+            print()
+
         mean_losses = list(reversed(mean_losses))
         column_index = mean_losses.index(min(mean_losses))
+
+        print("\rSearching Columns: Copying Column: {}".format(column_index))
 
         if column_search:
             column = model.columns[column_index]
@@ -136,6 +151,8 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             model.columns[-1].load_state_dict(column_state_dict)
         elif leaf_search:
             model.columns[-1].leaf.load_state_dict(model.columns[column_index].leaf.state_dict())
+
+        print()
     return column_index, mean_losses
 
 
@@ -261,6 +278,7 @@ def main():
             if epoch_progress == 0:
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
+                    print("Searching Columns: ")
                     column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
                     columns.append(column_index)
                     column_losses.append(mean_losses)
@@ -296,6 +314,7 @@ def main():
 
                         printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
 
+                print()
                 torch.save({
                     'num': num,
                     'task_size': task_size,
