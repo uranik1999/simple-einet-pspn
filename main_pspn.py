@@ -15,7 +15,7 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search):
+def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_batches, lr):
     with torch.no_grad():
 
         if column_search:
@@ -49,22 +49,47 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             elif leaf_search:
                 test_model.leaf.load_state_dict(column.leaf.state_dict())
 
+            if trained_search:
+                with torch.enable_grad():
+
+                    optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
+
+                    for batch, (data, labels) in enumerate(dataloader):
+                        if batch >= nr_training_batches:
+                            break
+
+                        data = data.to(device)
+                        labels = labels.to(device)
+
+                        if column_search:
+                            likelihood = test_model(data)
+                        else:
+                            likelihood, _ = test_model(data, prev_column_outputs=[])
+                        prior = -0.6931471805599453  # log(0.5) = p(y)
+                        marginal = (likelihood + prior).logsumexp(-1).unsqueeze(
+                            1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                        posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+
+                        err = loss(posterior, labels)
+                        err.backward()
+                        optimizer.step()
+
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
+                if batch >= nr_search_batches:
+                    break
 
                 data = data.to(device)
                 labels = labels.to(device)
 
-                if batch >= nr_search_batches:
-                    break
                 if column_search:
                     likelihood = test_model(data)
                 else:
                     likelihood, _ = test_model(data, prev_column_outputs=[])
-
                 prior = -0.6931471805599453  # log(0.5) = p(y)
                 marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                 posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+
                 losses.append(loss(posterior, labels))
 
             mean_loss = sum(losses) / len(losses)
@@ -137,7 +162,9 @@ def main():
             leaf_search = args.leaf_search
             isolated_column_search = args.isolated_column_search
             column_search = args.column_search
+            trained_search = args.trained_search
             num_search_batches = args.num_search_batches
+            num_training_batches = args.num_training_batches
             test_frequency = args.test_frequency
 
             dataset = args.dataset
@@ -192,7 +219,9 @@ def main():
             leaf_search = checkpoint['leaf_search']
             isolated_column_search = checkpoint['isolated_column_search']
             column_search = checkpoint['column_search']
+            trained_search = checkpoint['trained_search']
             num_search_batches = checkpoint['num_search_batches']
+            num_training_batches = checkpoint['num_training_batches']
             test_frequency = checkpoint['test_frequency']
 
             dataset = checkpoint['dataset']
@@ -226,7 +255,7 @@ def main():
             if epoch_progress == 0:
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
-                    column_index = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search)
+                    column_index = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
                     columns.append(column_index)
 
                 losses.append([])
@@ -273,7 +302,9 @@ def main():
                     'leaf_search': leaf_search,
                     'isolated_column_search': isolated_column_search,
                     'column_search': column_search,
+                    'trained_search': trained_search,
                     'num_search_batches': num_search_batches,
+                    'num_training_batches': num_training_batches,
                     'test_frequency': test_frequency,
 
                     'dataset': dataset,
@@ -347,7 +378,9 @@ def main():
                     'leaf_search': leaf_search,
                     'isolated_column_search': isolated_column_search,
                     'column_search': column_search,
+                    'trained_search': trained_search,
                     'num_search_batches': num_search_batches,
+                    'num_training_batches': num_training_batches,
                     'test_frequency': test_frequency,
 
                     'dataset': dataset,

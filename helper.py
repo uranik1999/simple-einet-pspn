@@ -30,12 +30,12 @@ def analyseWeights(model, columns=None):
 
     for i, column_weights in enumerate(pspn_weights):
         column_weights = torch.tensor(column_weights)
-        column_weight_distributions = F.softmax(column_weights, dim=-1).tolist()
+        column_weight_distributions = column_weights / torch.sum(column_weights, dim=1).unsqueeze(1)
 
         for row, weights in enumerate(column_weight_distributions):
             for column, weight in enumerate(weights):
                 plt.plot(column, row, 'ko', markersize=20)
-                plt.plot([column, i], [row - 1, row], c='k', alpha=weight, linewidth=weight * 3)
+                plt.plot([column, i], [row - 1, row], c='k', alpha=weight.item(), linewidth=weight * 3)
 
 
     plt.show()
@@ -64,9 +64,12 @@ def parse_args():
     parser.add_argument('--leaf-search', action='store_true', default=False, help="Toggle the leaf searching (default: off)")
     parser.add_argument('--isolated-column-search', action='store_true', default=False, help="Toggle the isolated column searching (default: off)")
     parser.add_argument('--column-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
+    parser.add_argument('--trained-search', action='store_true', default=False, help="Toggle the column searching (default: off)")
+
     parser.add_argument('--test-spn', action='store_true', default=False, help="Toggle the spn testing of final task (default: off)")
 
     parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
+    parser.add_argument("--num_training_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
 
     parser.add_argument("--num-sums", type=int, default=3, help="Number of sum nodes (default: 5)")
     parser.add_argument("--num-leaves", type=int, default=3, help="Number of leaf nodes (default: 5)")

@@ -39,7 +39,7 @@ intersection_type = '2ti'
 search_type = 'cs'
 
 type = intersection_type + '_' + search_type
-name = "100_2t5s_svhn_{}_15_15_3_5".format(type)
+name = "300_2t5s_svhn_{}_15_15_3_5".format(type)
 
 plot = True
 csv = False
@@ -63,7 +63,11 @@ with open('csv/{}.csv'.format(name), 'a') as file:
         pspn = PSPN(config, checkpoint['task_progress'] + 1)
         pspn.load_state_dict(checkpoint['pspn_state_dict'])
 
-        if plot: analyseWeights(pspn)
+        if plot:
+            columns = None
+            if 'columns' in checkpoint:
+                columns = checkpoint['columns']
+            analyseWeights(pspn, columns)
 
         losses = checkpoint['losses']
         #losses[-1] = standard['losses'][-1]
