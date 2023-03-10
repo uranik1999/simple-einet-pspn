@@ -26,7 +26,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
         mean_losses = []
         for column in reversed(model.columns):
-            print("\rSearching Columns: Building Column {}".format(column))
+            print("\rSearching Columns: Building Column {}".format(column.column_index), end="")
             if column_search:
                 column_state_dict = column.state_dict()
                 for i in range(len(column.layers)):
@@ -78,7 +78,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                             err.backward()
                             optimizer.step()
 
-                            print("\rSearching Columns: Training Column {} - Batch {} / {} - Loss {}".format(column, total_batches + batch, nr_training_batches, err.item()))
+                            print("\rSearching Columns: Training Column {} - Batch {} / {} - Loss {}".format(column.column_index, total_batches + batch, nr_training_batches, err.item()), end="")
 
                         total_batches += batch
             print()
@@ -101,21 +101,21 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
                 losses.append(loss(posterior, labels))
 
-                print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column,
+                print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column.column_index,
                                                                                                 total_batches + batch,
                                                                                                 nr_training_batches,
-                                                                                                err.item()))
+                                                                                                err.item()), end="")
 
             mean_loss = sum(losses) / len(losses)
             mean_losses.append(mean_loss)
 
-            print("\rSearching Columns: Tested Column {} - Mean Loss {}".format(column, mean_loss))
+            print("\rSearching Columns: Tested Column {} - Mean Loss {}".format(column.column_index, mean_loss), end="")
             print()
 
         mean_losses = list(reversed(mean_losses))
         column_index = mean_losses.index(min(mean_losses))
 
-        print("\rSearching Columns: Copying Column: {}".format(column_index))
+        print("\rSearching Columns: Copying Column: {}".format(column_index), end="")
 
         if column_search:
             column = model.columns[column_index]
@@ -278,7 +278,7 @@ def main():
             if epoch_progress == 0:
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
-                    print("Searching Columns: ")
+                    print("Searching Columns: ", end="")
                     column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
                     columns.append(column_index)
                     column_losses.append(mean_losses)
