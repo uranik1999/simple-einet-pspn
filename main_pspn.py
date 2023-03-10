@@ -15,7 +15,7 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_batches, lr):
+def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_epochs, lr):
     with torch.no_grad():
 
         if column_search:
@@ -56,12 +56,8 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                     optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
 
                     total_batches = 0
-                    while total_batches < nr_training_batches:
+                    for epoch in range(nr_training_epochs):
                         for batch, (data, labels) in enumerate(dataloader):
-                            if total_batches + batch >= nr_training_batches:
-                                total_batches += batch
-                                break
-
                             data = data.to(device)
                             labels = labels.to(device)
 
@@ -78,9 +74,8 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                             err.backward()
                             optimizer.step()
 
-                            print("\rSearching Columns: Training Column {} - Batch {} / {} - Loss {}".format(column.column_index, total_batches + batch, nr_training_batches, err.item()), end="")
+                        print("\rSearching Columns: Training Column {} - Epoch {} / {} - Loss {}".format(column.column_index, epoch + 1, nr_training_epochs, err.item()), end="")
 
-                        total_batches += batch
             print()
 
             losses = []
@@ -103,7 +98,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
                 print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column.column_index,
                                                                                                 total_batches + batch,
-                                                                                                nr_training_batches,
+                                                                                                nr_training_epochs,
                                                                                                 err.item()), end="")
 
             mean_loss = sum(losses) / len(losses)
@@ -185,7 +180,7 @@ def main():
             column_search = args.column_search
             trained_search = args.trained_search
             num_search_batches = args.num_search_batches
-            num_training_batches = args.num_training_batches
+            num_training_epochs = args.num_training_epochs
             test_frequency = args.test_frequency
 
             dataset = args.dataset
@@ -243,7 +238,7 @@ def main():
             column_search = checkpoint['column_search']
             trained_search = checkpoint['trained_search']
             num_search_batches = checkpoint['num_search_batches']
-            num_training_batches = checkpoint['num_training_batches']
+            num_training_epochs = checkpoint['num_training_epochs']
             test_frequency = checkpoint['test_frequency']
 
             dataset = checkpoint['dataset']
@@ -279,7 +274,7 @@ def main():
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
                     print("Searching Columns: ", end="")
-                    column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
+                    column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_epochs, lr)
                     columns.append(column_index)
                     column_losses.append(mean_losses)
 
@@ -329,7 +324,7 @@ def main():
                     'column_search': column_search,
                     'trained_search': trained_search,
                     'num_search_batches': num_search_batches,
-                    'num_training_batches': num_training_batches,
+                    'num_training_epochs': num_training_epochs,
                     'test_frequency': test_frequency,
 
                     'dataset': dataset,
@@ -407,7 +402,7 @@ def main():
                     'column_search': column_search,
                     'trained_search': trained_search,
                     'num_search_batches': num_search_batches,
-                    'num_training_batches': num_training_batches,
+                    'num_training_epochs': num_training_epochs,
                     'test_frequency': test_frequency,
 
                     'dataset': dataset,
