@@ -35,8 +35,8 @@ reps = 1
 #name = "ncs_ti"
 name = "30r_cs_ti_d3"
 
-intersection_type = '2ti'
-search_type = 'cs'
+intersection_type = 'ni'
+search_type = 'tcs'
 
 type = intersection_type + '_' + search_type
 name = "300_2t5s_svhn_{}_15_15_3_5".format(type)

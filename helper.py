@@ -68,8 +68,8 @@ def parse_args():
 
     parser.add_argument('--test-spn', action='store_true', default=False, help="Toggle the spn testing of final task (default: off)")
 
-    parser.add_argument("--num_search_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
-    parser.add_argument("--num_training_batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
+    parser.add_argument("--num-search-batches", type=int, default=128, help="Number of batches to use for the column searching (default: 128)")
+    parser.add_argument("--num-training-batches", type=int, default=128, help="Number of training batches to use for the column searching (default: 128)")
 
     parser.add_argument("--num-sums", type=int, default=3, help="Number of sum nodes (default: 5)")
     parser.add_argument("--num-leaves", type=int, default=3, help="Number of leaf nodes (default: 5)")

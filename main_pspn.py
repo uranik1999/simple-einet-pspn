@@ -54,25 +54,29 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
                     optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
 
-                    for batch, (data, labels) in enumerate(dataloader):
-                        if batch >= nr_training_batches:
-                            break
+                    total_batches = 0
+                    while total_batches < nr_training_batches:
+                        for batch, (data, labels) in enumerate(dataloader):
+                            if total_batches + batch >= nr_training_batches:
+                                total_batches += batch
+                                break
 
-                        data = data.to(device)
-                        labels = labels.to(device)
+                            data = data.to(device)
+                            labels = labels.to(device)
 
-                        if column_search:
-                            likelihood = test_model(data)
-                        else:
-                            likelihood, _ = test_model(data, prev_column_outputs=[])
-                        prior = -0.6931471805599453  # log(0.5) = p(y)
-                        marginal = (likelihood + prior).logsumexp(-1).unsqueeze(
-                            1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
-                        posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+                            if column_search:
+                                likelihood = test_model(data)
+                            else:
+                                likelihood, _ = test_model(data, prev_column_outputs=[])
+                            prior = -0.6931471805599453  # log(0.5) = p(y)
+                            marginal = (likelihood + prior).logsumexp(-1).unsqueeze(
+                                1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                            posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
 
-                        err = loss(posterior, labels)
-                        err.backward()
-                        optimizer.step()
+                            err = loss(posterior, labels)
+                            err.backward()
+                            optimizer.step()
+                        total_batches += batch
 
             losses = []
             for batch, (data, labels) in enumerate(dataloader):
@@ -132,7 +136,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             model.columns[-1].load_state_dict(column_state_dict)
         elif leaf_search:
             model.columns[-1].leaf.load_state_dict(model.columns[column_index].leaf.state_dict())
-    return column_index
+    return column_index, mean_losses
 
 
 def main():
@@ -173,6 +177,7 @@ def main():
             losses = []
             accuracies = []
             columns = []
+            column_losses = []
 
             epoch_progress = 0
             task_progress = starting_task
@@ -230,6 +235,7 @@ def main():
             losses = checkpoint['losses']
             accuracies = checkpoint['accuracies']
             columns = checkpoint['columns']
+            column_losses = checkpoint['column_losses']
 
             epoch_progress = checkpoint['epoch_progress']
             task_progress = checkpoint['task_progress']
@@ -255,8 +261,9 @@ def main():
             if epoch_progress == 0:
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
-                    column_index = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
+                    column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_batches, lr)
                     columns.append(column_index)
+                    column_losses.append(mean_losses)
 
                 losses.append([])
                 accuracies.append([])
@@ -320,6 +327,7 @@ def main():
                     'losses': losses,
                     'accuracies': accuracies,
                     'columns': columns,
+                    'column_losses': column_losses,
 
                     'epoch_progress': epoch + 1,
                     'task_progress': task
@@ -336,7 +344,7 @@ def main():
 
             optimizer = torch.optim.Adam(spn.parameters(), lr=lr)
 
-            train_dataloader, test_dataloader = get_datasets(task_size, num_tasks - 1, task_intersection, train_batch_size, test_batch_size)
+            train_dataloader, test_dataloader = get_datasets(dataset, task_size, num_tasks - 1, task_intersection, train_batch_size, test_batch_size)
             batches = len(train_dataloader)
             test_data, test_labels = next(iter(test_dataloader))
             test_data, test_labels = test_data.to(device), test_labels.to(device)
@@ -396,6 +404,7 @@ def main():
                     'losses': losses,
                     'accuracies': accuracies,
                     'columns': columns,
+                    'column_losses': column_losses,
 
                     'epoch_progress': epoch + 1,
                     'task_progress': task
