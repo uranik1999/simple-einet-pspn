@@ -520,7 +520,9 @@ class PSPN(nn.Module):
         column = EinetColumn(self.column_config, column_index=self.num_tasks)
         self.columns.append(column)
 
-
+    def freezePrevColumns(self):
+        for p in self.columns[:-1].parameters():
+            p.requires_grad_(False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert self.num_tasks > 0

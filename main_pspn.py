@@ -51,6 +51,8 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                 test_model.leaf.load_state_dict(column.leaf.state_dict())
 
             if trained_search:
+                test_model.freezePrevColumns()
+
                 with torch.enable_grad():
 
                     optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
