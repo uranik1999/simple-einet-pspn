@@ -15,7 +15,7 @@ from simple_einet.einet import PSPN, EinetColumnConfig, EinetColumn
 import time
 
 
-def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_epochs, lr):
+def columnSearch(device, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_epochs, lr, task_size):
     with torch.no_grad():
 
         if column_search:
@@ -67,7 +67,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                                 likelihood = test_model(data)
                             else:
                                 likelihood, _ = test_model(data, prev_column_outputs=[])
-                            prior = -0.6931471805599453  # log(0.5) = p(y)
+                            prior = torch.log(torch.tensor(1 / task_size))  # p(y)
                             marginal = (likelihood + prior).logsumexp(-1).unsqueeze(
                                 1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                             posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
@@ -92,7 +92,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                     likelihood = test_model(data)
                 else:
                     likelihood, _ = test_model(data, prev_column_outputs=[])
-                prior = -0.6931471805599453  # log(0.5) = p(y)
+                prior = torch.log(torch.tensor(1 / task_size))  # p(y)
                 marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                 posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
 
@@ -276,7 +276,7 @@ def main():
                 pspn.expand()
                 if (column_search or leaf_search or isolated_column_search) and task != 0:
                     print("Searching Columns: ", end="")
-                    column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_epochs, lr)
+                    column_index, mean_losses = columnSearch(device, pspn, config, train_dataloader, num_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, num_training_epochs, lr, task_size)
                     columns.append(column_index)
                     column_losses.append(mean_losses)
 
@@ -296,7 +296,7 @@ def main():
                     # Training
                     optimizer.zero_grad()
                     likelihood = pspn(data)
-                    prior = -0.6931471805599453  # log(0.5) = p(y)
+                    prior = torch.log(torch.tensor(1 / task_size))  # p(y)
                     marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                     posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
                     err = loss(posterior, labels)
@@ -350,84 +350,6 @@ def main():
 
             print()
             epoch_progress = 0
-
-        if test_spn:
-            print()
-
-            if epoch_progress == 0:
-                losses.append([])
-                accuracies.append([])
-
-            optimizer = torch.optim.Adam(spn.parameters(), lr=lr)
-
-            train_dataloader, test_dataloader = get_datasets(dataset, task_size, num_tasks - 1, task_intersection, train_batch_size, test_batch_size)
-            batches = len(train_dataloader)
-            test_data, test_labels = next(iter(test_dataloader))
-            test_data, test_labels = test_data.to(device), test_labels.to(device)
-
-            for epoch in range(epoch_progress, num_epochs):
-                for batch, (data, labels) in enumerate(train_dataloader):
-                    t = time.time()
-
-                    data = data.to(device)
-                    labels = labels.to(device)
-
-                    # Training
-                    optimizer.zero_grad()
-                    likelihood, _ = spn(data, prev_column_outputs=[])
-                    prior = -0.6931471805599453  # log(0.5) = p(y)
-                    marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
-                    posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
-                    err = loss(posterior, labels)
-                    err.backward()
-                    optimizer.step()
-
-                    losses[-1].append(err.item())
-                    accuracies[-1].append(test(pspn, test_data, test_labels))
-
-                    t = time.time() - t
-
-                    printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num)
-
-                torch.save({
-                    'num': num,
-                    'task_size': task_size,
-                    'starting_task': starting_task,
-                    'task_intersection': task_intersection,
-                    'num_tasks': num_tasks,
-                    'num_epochs': num_epochs,
-                    'lr': lr,
-                    'train_batch_size': train_batch_size,
-                    'test_batch_size': train_batch_size,
-                    'leaf_search': leaf_search,
-                    'isolated_column_search': isolated_column_search,
-                    'column_search': column_search,
-                    'trained_search': trained_search,
-                    'num_search_batches': num_search_batches,
-                    'num_training_epochs': num_training_epochs,
-                    'test_frequency': test_frequency,
-
-                    'dataset': dataset,
-
-                    'config': config,
-                    'pspn_state_dict': pspn.state_dict(),
-                    'spn_state_dict': spn.state_dict(),
-                    'test_spn': test_spn,
-
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss,
-
-                    'losses': losses,
-                    'accuracies': accuracies,
-                    'columns': columns,
-                    'column_losses': column_losses,
-
-                    'epoch_progress': epoch + 1,
-                    'task_progress': task
-                }, './model/backup/pspn-backup_{}.pt'.format(model_name))
-
-            print('\n' + model_name)
-            print()
 
 
 if __name__ == "__main__":
