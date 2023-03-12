@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 
 import argparse
 
+from simple_einet.einet import EinetColumn
+
 
 def analyseWeights(model, columns=None):
     pspn_weights = []
@@ -129,11 +131,19 @@ def get_datasets(dataset, task_size, task_index, task_intersection, train_batch_
     return train_dataloader, test_dataloader
 
 
-def test(model, data, labels):
+def test(model, data, labels, task_size):
     correct_predictions, total_predictions = 0, 0
     with torch.no_grad():
-        outputs = model(data)
-        _, predictions = torch.max(outputs, dim=1)
+        if isinstance(model, EinetColumn):
+            likelihood, _ = model(data, prev_column_outputs=[])
+        else:
+            likelihood = model(data)
+
+        prior = torch.log(torch.tensor(1 / task_size))  # p(y)
+        marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+        posterior = likelihood + prior - marginal
+
+        _, predictions = torch.max(posterior, dim=1)
         total_predictions += labels.size(0)
         correct_predictions += (predictions == labels).sum().item()
     return correct_predictions / total_predictions

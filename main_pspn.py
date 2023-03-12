@@ -99,7 +99,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                 losses.append(loss(posterior, labels))
 
                 print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column.column_index,
-                                                                                                total_batches + batch,
+                                                                                                batch,
                                                                                                 nr_training_epochs,
                                                                                                 err.item()), end="")
 
@@ -216,8 +216,6 @@ def main():
                 seed=args.seed,
             )
             pspn = PSPN(config).to(device)
-            spn = EinetColumn(config, column_index=0).to(device)  # column_index = 0 to exclude lateral connections
-            test_spn = args.test_spn
 
             loss = nn.NLLLoss()
         else:
@@ -258,9 +256,6 @@ def main():
             config = checkpoint['config']
             pspn = PSPN(config, task_progress + 1)
             pspn.load_state_dict(checkpoint['pspn_state_dict'])
-            spn = EinetColumn(config, column_index=0).to(device)  # column_index = 0 to exclude lateral connections
-            spn.load_state_dict(checkpoint['spn_state_dict'])
-            test_spn = checkpoint['test_spn']
 
             # Load optimizer
             loss = checkpoint['loss']
@@ -314,7 +309,7 @@ def main():
                 t = time.time() - t
 
                 losses[-1].append(err.item())
-                accuracies[-1].append(test(pspn, test_data, test_labels))
+                accuracies[-1].append(test(pspn, test_data, test_labels, task_size))
 
                 printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
 
@@ -340,8 +335,6 @@ def main():
 
                     'config': config,
                     'pspn_state_dict': pspn.state_dict(),
-                    'spn_state_dict': spn.state_dict(),
-                    'test_spn': test_spn,
 
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': loss,
