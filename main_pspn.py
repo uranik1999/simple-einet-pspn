@@ -345,7 +345,7 @@ def main():
 
                     'epoch_progress': epoch + 1,
                     'task_progress': task
-                }, './model/backup/pspn-backup_{}.pt'.format(model_name))
+                }, './model/backup/pspn_{}.pt'.format(model_name))
 
             print()
             epoch_progress = 0
