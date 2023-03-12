@@ -182,14 +182,17 @@ def evaluateAcc(accuracies):
 
 
 def printProgress(time, acc, loss, batch, batches, epoch, epochs, rep, num, task=None, tasks=None):
-    if task is None:
-        s = int(time * (num * epochs * batches - (rep * epochs * batches + epoch * batches + batch)))
-        prog = round((rep * epochs * batches + epoch * batches + batch) / (num * epochs * batches) * 100, 2)
-    else:
-        s = int(time * (num * tasks * epochs * batches - (
-                    rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch)))
-        prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (
+    s = time * ((tasks * (tasks + 1) // 2) * epochs - (task * (task + 1) // 2) * epochs - epoch)
+    prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (
                     num * tasks * epochs * batches) * 100, 2)
+    # if task is None:
+    #     s = int(time * (num * epochs * batches - (rep * epochs * batches + epoch * batches + batch)))
+    #     prog = round((rep * epochs * batches + epoch * batches + batch) / (num * epochs * batches) * 100, 2)
+    # else:
+    #     s = int(time * (num * tasks * epochs * batches - (
+    #                 rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch)))
+    #     prog = round((rep * tasks * epochs * batches + task * epochs * batches + epoch * batches + batch) / (
+    #                 num * tasks * epochs * batches) * 100, 2)
     # else:
     #     s = int(time * (tasks * epochs * batches - (task * epochs * batches + epoch * batches + batch)))
     #     prog = round((task * epochs * batches + epoch * batches + batch) / (tasks * epochs * batches) * 100, 2)
@@ -197,11 +200,14 @@ def printProgress(time, acc, loss, batch, batches, epoch, epochs, rep, num, task
     s = s % 3600
     m = s // 60
     s = s % 60
-    itps = round(1 / time, 3)
+    # itps = round(1 / time, 3)
+    eps = round(1 / time, 3)
     acc = round(acc * 100, 2)
-    if task is None:
-        print("\rRep: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-            .format(rep + 1, num, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
-    else:
-        print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
-            .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    # if task is None:
+    #     print("\rRep: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+    #         .format(rep + 1, num, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    # else:
+    #     print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
+    #         .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
+    print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} ep/s) | Accuracy: {}% | Loss: {}"
+             .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, prog, h, m, s, eps, acc, loss), end="")

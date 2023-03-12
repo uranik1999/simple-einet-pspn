@@ -287,8 +287,9 @@ def main():
             optimizer = torch.optim.Adam(pspn.parameters(), lr=lr)
 
             for epoch in range(epoch_progress, num_epochs):
+                t = time.time()
+
                 for batch, (data, labels) in enumerate(train_dataloader):
-                    t = time.time()
 
                     data = data.to(device)
                     labels = labels.to(device)
@@ -303,13 +304,19 @@ def main():
                     err.backward()
                     optimizer.step()
 
-                    if batch % test_frequency == 0:
-                        losses[-1].append(err.item())
-                        accuracies[-1].append(test(pspn, test_data, test_labels))
+                    # if batch % test_frequency == 0:
+                    #     losses[-1].append(err.item())
+                    #     accuracies[-1].append(test(pspn, test_data, test_labels))
+                    #
+                    #     t = time.time() - t
+                    #
+                    #     printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
+                t = time.time() - t
 
-                        t = time.time() - t
+                losses[-1].append(err.item())
+                accuracies[-1].append(test(pspn, test_data, test_labels))
 
-                        printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
+                printProgress(t, accuracies[-1][-1], losses[-1][-1], batch, batches, epoch, num_epochs, rep, num, task, num_tasks)
 
                 torch.save({
                     'num': num,
