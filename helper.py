@@ -220,4 +220,4 @@ def printProgress(time, acc, loss, batch, batches, epoch, epochs, rep, num, task
     #     print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} - Batch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} it/s) | Accuracy: {}% | Loss: {}"
     #         .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, batch + 1, batches, prog, h, m, s, itps, acc, loss), end="")
     print("\rRep: {} / {} - Task: {} / {} - Epoch: {} / {} ( Progress: {}% ) | Time Remaining: {}h :{}m :{}s ({} ep/s) | Accuracy: {}% | Loss: {}"
-             .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, prog, h, m, s, eps, acc, loss), end="")
+             .format(rep + 1, num, task + 1, tasks, epoch + 1, epochs, prog, round(h), round(m), round(s), eps, acc, loss), end="")

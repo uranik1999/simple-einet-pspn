@@ -57,7 +57,6 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
                     optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
 
-                    total_batches = 0
                     for epoch in range(nr_training_epochs):
                         for batch, (data, labels) in enumerate(dataloader):
                             data = data.to(device)
@@ -101,7 +100,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
                 print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column.column_index,
                                                                                                 batch,
                                                                                                 nr_training_epochs,
-                                                                                                err.item()), end="")
+                                                                                                losses[-1]), end="")
 
             mean_loss = sum(losses) / len(losses)
             mean_losses.append(mean_loss)
