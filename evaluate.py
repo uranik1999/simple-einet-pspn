@@ -30,16 +30,15 @@ from simple_einet.einet import PSPN, EinetColumnConfig
 #
 
 reps = 1
-#name = "ncs_nti"
-#name = "cs-nti"
-#name = "ncs_ti"
-name = "30r_cs_ti_d3"
 
+epochs = '50'
+tasks = '3t3s'
+dataset = 'svhn'
 intersection_type = 'ni'
-search_type = 'tcs'
+search_type = 'fcs'
+column_param = '10_10_2_4'
 
-type = intersection_type + '_' + search_type
-name = "300_2t5s_svhn_{}_15_15_3_5".format(type)
+name = '_'.join((epochs, tasks, dataset, intersection_type, search_type, column_param))
 
 plot = True
 csv = False
@@ -50,78 +49,65 @@ with open('csv/{}.csv'.format(name), 'a') as file:
 
     for index in range(reps):
         if reps == 1:
-            file_name = "pspn-backup_{}.pt".format(name)
+            pspn_name = "pspn_{}.pt".format(name)
+            spn_name = "spn_{}.pt".format(name).replace(search_type, "ns")
         else:
             file_name = "pspn-backup_{}_{}.pt".format(name, index)
 
-        spn_file_name = file_name.replace(search_type, "spn")
+        pspn_checkpoint = torch.load('./model/backup/{}'.format(pspn_name), map_location=torch.device('cpu'))
+        spn_checkpoint = torch.load('./model/backup/{}'.format(spn_name), map_location=torch.device('cpu'))
 
-        checkpoint = torch.load('./model/backup/{}'.format(file_name), map_location=torch.device('cpu'))
-        standard = torch.load('./model/backup/{}'.format(spn_file_name), map_location=torch.device('cpu'))
-
-        config = checkpoint['config']
-        pspn = PSPN(config, checkpoint['task_progress'] + 1)
-        pspn.load_state_dict(checkpoint['pspn_state_dict'])
+        config = pspn_checkpoint['config']
+        pspn = PSPN(config, pspn_checkpoint['task_progress'] + 1)
+        pspn.load_state_dict(pspn_checkpoint['pspn_state_dict'])
 
         if plot:
             columns = None
-            if 'columns' in checkpoint:
-                columns = checkpoint['columns']
+            if 'columns' in pspn_checkpoint:
+                columns = pspn_checkpoint['columns']
             analyseWeights(pspn, columns)
 
-        losses = checkpoint['losses']
-        #losses[-1] = standard['losses'][-1]
-        losses.append(standard['losses'][-1])
+        pspn_losses = pspn_checkpoint['losses']
+        spn_losses = spn_checkpoint['losses']
 
-        accuracies = checkpoint['accuracies']
-        #accuracies[-1] = standard['accuracies'][-1]
-        accuracies.append(standard['accuracies'][-1])
+        pspn_accuracies = pspn_checkpoint['accuracies']
+        spn_accuracies = spn_checkpoint['accuracies']
 
-        num_epochs = checkpoint['num_epochs']
-        num_tasks = checkpoint['num_tasks'] - checkpoint['starting_task']
+        num_epochs = pspn_checkpoint['num_epochs']
+        num_tasks = pspn_checkpoint['num_tasks'] - pspn_checkpoint['starting_task']
 
-        classification_borders = []
-        convergence_borders = []
-        if len(losses) == 1:
-            fig, ax = plt.subplots(1, 1, sharex=True)
-            min_loss, convergence_border = evaluateLoss(losses[0])
+        pspn_classification_borders = []
+        pspn_convergence_borders = []
+        spn_classification_borders = []
+        spn_convergence_borders = []
+        for i, pspn_loss in enumerate(pspn_losses):
+            pspn_min_loss, pspn_convergence_border = evaluateLoss(pspn_loss)
+            spn_min_loss, spn_convergence_border = evaluateLoss(spn_losses[i])
             if plot:
-                plotLoss(ax, losses[0], min_loss, convergence_border)
+                plotLoss(plt, pspn_loss, pspn_min_loss, pspn_convergence_border, c='blue', ac='lightblue')
+                plotLoss(plt, spn_losses[i], spn_min_loss, spn_convergence_border, c='red', ac='pink')
+                plt.title('loss')
                 plt.show()
+            if csv:
+                pspn_convergence_borders.append(pspn_convergence_border)
+                spn_convergence_borders.append(spn_convergence_border)
 
-            fig, ax = plt.subplots(1, 1, sharex=True)
-            threshold, classification_border = evaluateAcc(accuracies[0])
+            pspn_threshold, pspn_classification_border = evaluateAcc(pspn_accuracies[i])
+            spn_threshold, spn_classification_border = evaluateAcc(spn_accuracies[i])
             if plot:
-                plotAccuracy(ax, accuracies[0], threshold, classification_border)
+                plotAccuracy(plt, pspn_accuracies[i], pspn_threshold, pspn_classification_border, c='blue', ac='lightblue')
+                plotAccuracy(plt, spn_accuracies[i], spn_threshold, spn_classification_border, c='red', ac='pink')
+                plt.title('acc')
                 plt.show()
-        else:
-            if plot:
-                fig, axs = plt.subplots(len(losses) // 2, 2 + (len(losses) % 2), sharex=True)
-                for i, ax in enumerate(axs.reshape(-1)):
-                    min_loss, convergence_border = evaluateLoss(losses[i])
-                    convergence_borders.append(convergence_border)
-                    plotLoss(ax, losses[i], min_loss, convergence_border)
-                plt.show()
-
-                fig, axs = plt.subplots(len(losses) // 2, 2 + len(losses) % 2, sharex=True)
-                for i, ax in enumerate(axs.reshape(-1)):
-                    threshold, classification_border = evaluateAcc(accuracies[i])
-                    classification_borders.append(classification_border)
-                    plotAccuracy(ax, accuracies[i], threshold, classification_border)
-                plt.show()
-            elif csv:
-                for i in range(len(losses)):
-                    min_loss, convergence_border = evaluateLoss(losses[i])
-                    convergence_borders.append(convergence_border)
-
-                    threshold, classification_border = evaluateAcc(accuracies[i])
-                    classification_borders.append(classification_border)
+            if csv:
+                pspn_classification_borders.append(pspn_convergence_border)
+                spn_classification_borders.append(spn_convergence_border)
 
         if csv:
-            file.write(str(round(accuracies[-1][-1], 3)).replace(".",",") + ";" + str(round(accuracies[-2][-1], 3)).replace(".",",") + ";" + \
-                       str(classification_borders[-1]) + ';' + str(classification_borders[-2]) + ';' + \
-                       str(round(losses[-1][-1], 5)).replace(".",",") + ';' + str(round(losses[-2][-1], 5)).replace(".",",") + ';' + \
-                       str(convergence_borders[-1]) + ';' + str(convergence_borders[-2]) + '\n')
+            file.write(str(round(spn_accuracies[-1][-1], 3)).replace(".",",") + ";" + str(round(pspn_accuracies[-1][-1], 3)).replace(".",",") + ";" + \
+                       str(spn_classification_borders[-1]) + ';' + str(pspn_classification_borders[-1]) + ';' + \
+                       str(round(spn_losses[-1][-1], 5)).replace(".",",") + ';' + str(round(pspn_losses[-1][-1], 5)).replace(".",",") + ';' + \
+                       str(pspn_convergence_borders[-1]) + ';' + str(spn_convergence_borders[-1]) + '\n')
 
         if reps > 1 and plot: input("Press Enter")
 

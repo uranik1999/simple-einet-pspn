@@ -149,21 +149,19 @@ def test(model, data, labels, task_size):
     return correct_predictions / total_predictions
 
 
-def plotLoss(plt, losses, min_loss, convergence_border):
-    plt.plot(losses)
+def plotLoss(plt, losses, min_loss, convergence_border, c=None, ac=None):
+    plt.plot(losses, c=c)
 
     if convergence_border != len(losses) - 1:
-        plt.axhline(y=min_loss, c='lightgrey')
-        plt.axvline(x=convergence_border, c='r')
-    plt.set_title('loss: ' + str(round(losses[-1], 3)))
+        plt.axhline(y=min_loss, c=ac)
+        plt.axvline(x=convergence_border, c=c)
 
 
-def plotAccuracy(plt, accuracies, threshold, classification_border):
-    plt.plot(accuracies)
+def plotAccuracy(plt, accuracies, threshold, classification_border, c=None, ac=None):
+    plt.plot(accuracies, c=c)
     if classification_border is not None:
-        plt.axhline(y=threshold, c='lightgrey')
-        plt.axvline(x=classification_border, c='r')
-    plt.set_title('acc: ' + str(round(accuracies[-1], 2)))
+        plt.axhline(y=threshold, c=ac)
+        plt.axvline(x=classification_border, c=c)
 
 
 def evaluateLoss(losses):
@@ -181,7 +179,7 @@ def evaluateLoss(losses):
 
 
 def evaluateAcc(accuracies):
-    threshold = 0.95
+    threshold = 0.75
     # Accuracies
     classification_border = None
     for i, acc in enumerate(accuracies):
