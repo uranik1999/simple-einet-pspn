@@ -65,7 +65,7 @@ with open('csv/{}.csv'.format(name), 'a') as file:
             columns = None
             if 'columns' in pspn_checkpoint:
                 columns = pspn_checkpoint['columns']
-            analyseWeights(pspn, columns)
+            analyseWeights(pspn, columns, name='{} - {}'.format(intersection_type, search_type).upper())
 
         pspn_losses = pspn_checkpoint['losses']
         spn_losses = spn_checkpoint['losses']
@@ -84,9 +84,10 @@ with open('csv/{}.csv'.format(name), 'a') as file:
             pspn_min_loss, pspn_convergence_border = evaluateLoss(pspn_loss)
             spn_min_loss, spn_convergence_border = evaluateLoss(spn_losses[i])
             if plot:
-                plotLoss(plt, pspn_loss, pspn_min_loss, pspn_convergence_border, c='blue', ac='lightblue')
-                plotLoss(plt, spn_losses[i], spn_min_loss, spn_convergence_border, c='red', ac='pink')
-                plt.title('loss')
+                plotLoss(plt, pspn_loss, pspn_min_loss, pspn_convergence_border, c='blue', ac='lightblue', label='PSPN')
+                plotLoss(plt, spn_losses[i], spn_min_loss, spn_convergence_border, c='red', ac='pink', label='SPN')
+                plt.legend(loc="upper left")
+                plt.title('Loss: Column {}'.format(i))
                 plt.show()
             if csv:
                 pspn_convergence_borders.append(pspn_convergence_border)
@@ -95,9 +96,10 @@ with open('csv/{}.csv'.format(name), 'a') as file:
             pspn_threshold, pspn_classification_border = evaluateAcc(pspn_accuracies[i])
             spn_threshold, spn_classification_border = evaluateAcc(spn_accuracies[i])
             if plot:
-                plotAccuracy(plt, pspn_accuracies[i], pspn_threshold, pspn_classification_border, c='blue', ac='lightblue')
-                plotAccuracy(plt, spn_accuracies[i], spn_threshold, spn_classification_border, c='red', ac='pink')
-                plt.title('acc')
+                plotAccuracy(plt, pspn_accuracies[i], pspn_threshold, pspn_classification_border, c='blue', ac='lightblue', label='PSPN')
+                plotAccuracy(plt, spn_accuracies[i], spn_threshold, spn_classification_border, c='red', ac='pink', label='SPN')
+                plt.legend(loc="upper left")
+                plt.title('Accuracy: Column {}'.format(i))
                 plt.show()
             if csv:
                 pspn_classification_borders.append(pspn_convergence_border)

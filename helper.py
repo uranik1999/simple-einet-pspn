@@ -11,7 +11,7 @@ import argparse
 from simple_einet.einet import EinetColumn
 
 
-def analyseWeights(model, columns=None):
+def analyseWeights(model, columns=None, name=None):
     pspn_weights = []
     for current_column in model.columns:
         pspn_weights.append([])
@@ -39,7 +39,10 @@ def analyseWeights(model, columns=None):
                 plt.plot(column, row, 'ko', markersize=20)
                 plt.plot([column, i], [row - 1, row], c='k', alpha=weight.item(), linewidth=weight * 3)
 
-
+    if name:
+        plt.title(name)
+    plt.xticks([])
+    plt.yticks([])
     plt.show()
 
 
@@ -149,16 +152,15 @@ def test(model, data, labels, task_size):
     return correct_predictions / total_predictions
 
 
-def plotLoss(plt, losses, min_loss, convergence_border, c=None, ac=None):
-    plt.plot(losses, c=c)
-
+def plotLoss(plt, losses, min_loss, convergence_border, c=None, ac=None, label=None):
+    plt.plot(losses, c=c, label=label)
     if convergence_border != len(losses) - 1:
         plt.axhline(y=min_loss, c=ac)
         plt.axvline(x=convergence_border, c=c)
 
 
-def plotAccuracy(plt, accuracies, threshold, classification_border, c=None, ac=None):
-    plt.plot(accuracies, c=c)
+def plotAccuracy(plt, accuracies, threshold, classification_border, c=None, ac=None, label=None):
+    plt.plot(accuracies, c=c, label=label)
     if classification_border is not None:
         plt.axhline(y=threshold, c=ac)
         plt.axvline(x=classification_border, c=c)
