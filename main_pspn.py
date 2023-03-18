@@ -25,6 +25,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             test_model = EinetColumn(column_config, column_index=0).to(device) # column_index = 0 to exclude lateral connections
 
         mean_losses = []
+        mean_norms = []
         for column in reversed(model.columns[:-1]):
             print("\rSearching Columns: Building Column {}".format(column.column_index), end="")
             if column_search:
@@ -79,38 +80,60 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
 
             print()
 
-            losses = []
-            for batch, (data, labels) in enumerate(dataloader):
-                if batch >= nr_search_batches:
-                    break
+            test_model.freezePrevColumns()
+            with torch.enable_grad():
 
-                data = data.to(device)
-                labels = labels.to(device)
+                optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
+                losses = []
+                norms = []
+                for batch, (data, labels) in enumerate(dataloader):
+                    if batch >= nr_search_batches:
+                        break
 
-                if column_search:
-                    likelihood = test_model(data)
-                else:
-                    likelihood, _ = test_model(data, prev_column_outputs=[])
-                prior = torch.log(torch.tensor(1 / task_size))  # p(y)
-                marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
-                posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+                    data = data.to(device)
+                    labels = labels.to(device)
 
-                losses.append(loss(posterior, labels))
 
-                print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {}".format(column.column_index,
-                                                                                                batch,
-                                                                                                nr_training_epochs,
-                                                                                                losses[-1]), end="")
+                    optimizer.zero_grad()
+
+                    if column_search:
+                        likelihood = test_model(data)
+                    else:
+                        likelihood, _ = test_model(data, prev_column_outputs=[])
+                    prior = torch.log(torch.tensor(1 / task_size))  # p(y)
+                    marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                    posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+
+                    err = loss(posterior, labels)
+                    err.backward()
+
+                    grad_norms = []
+                    for param in test_model.parameters():
+                        if param.requires_grad:
+                            grad_norms.append(param.grad.norm())
+
+                    norms.append(sum(grad_norms) / len(grad_norms))
+                    losses.append(err)
+
+                    print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {} - Norm {}".format(column.column_index,
+                                                                                                    batch,
+                                                                                                    nr_training_epochs,
+                                                                                                    losses[-1], norms[-1]), end="")
 
             mean_loss = sum(losses) / len(losses)
             mean_losses.append(mean_loss)
 
-            print("\rSearching Columns: Tested Column {} - Mean Loss {}".format(column.column_index, mean_loss), end="")
+            mean_norm = sum(norms) / len(norms)
+            mean_norms.append(mean_loss)
+
+            print("\rSearching Columns: Tested Column {} - Mean Loss {} - Mean Norm {}".format(column.column_index, mean_loss, mean_norm), end="")
             print()
 
-        mean_losses = list(reversed(mean_losses))
-        column_index = mean_losses.index(min(mean_losses))
+        # mean_losses = list(reversed(mean_losses))
+        # column_index = mean_losses.index(min(mean_losses))
         # column_index = 0
+        mean_norms = list(reversed(mean_norms))
+        column_index = mean_norms.index(min(mean_norms))
 
         print("\rSearching Columns: Copying Column: {}".format(column_index), end="")
 
