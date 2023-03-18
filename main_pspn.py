@@ -25,7 +25,7 @@ def columnSearch(device, model, column_config, dataloader, nr_search_batches, lo
             test_model = EinetColumn(column_config, column_index=0).to(device) # column_index = 0 to exclude lateral connections
 
         mean_losses = []
-        for column in reversed(model.columns):
+        for column in reversed(model.columns[:-1]):
             print("\rSearching Columns: Building Column {}".format(column.column_index), end="")
             if column_search:
                 column_state_dict = column.state_dict()
