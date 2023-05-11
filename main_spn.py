@@ -231,8 +231,8 @@ def columnSearch(device, previous_columns, model, column_config, dataloader, nr_
 
         mean_losses = []
         mean_norms = []
-        for column in reversed(previous_columns):
-            print("\rSearching Columns: Building Column {}".format(column.column_index), end="")
+        for column_index, column in enumerate(reversed(previous_columns)):
+            print("\rSearching Columns: Building Column {}".format(column_index), end="")
             if column_search:
                 column_state_dict = column.state_dict()
                 test_model.load_state_dict(column_state_dict)
@@ -260,7 +260,7 @@ def columnSearch(device, previous_columns, model, column_config, dataloader, nr_
                             err.backward()
                             optimizer.step()
 
-                        print("\rSearching Columns: Training Column {} - Epoch {} / {} - Loss {}".format(column.column_index, epoch + 1, nr_training_epochs, err.item()), end="")
+                        print("\rSearching Columns: Training Column {} - Epoch {} / {} - Loss {}".format(column_index, epoch + 1, nr_training_epochs, err.item()), end="")
 
             print()
 
@@ -296,7 +296,7 @@ def columnSearch(device, previous_columns, model, column_config, dataloader, nr_
                     norms.append(sum(grad_norms) / len(grad_norms))
                     losses.append(err)
 
-                    print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {} - Norm {}".format(column.column_index,
+                    print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {} - Norm {}".format(column_index,
                                                                                                     batch,
                                                                                                     nr_training_epochs,
                                                                                                     losses[-1], norms[-1]), end="")
@@ -310,11 +310,11 @@ def columnSearch(device, previous_columns, model, column_config, dataloader, nr_
             print("\rSearching Columns: Tested Column {} - Mean Loss {} - Mean Norm {}".format(column.column_index, mean_loss, mean_norm), end="")
             print()
 
-        # mean_losses = list(reversed(mean_losses))
-        # column_index = mean_losses.index(min(mean_losses))
+        mean_losses = list(reversed(mean_losses))
+        column_index = mean_losses.index(min(mean_losses))
         # column_index = 0
-        mean_norms = list(reversed(mean_norms))
-        column_index = mean_norms.index(min(mean_norms))
+        # mean_norms = list(reversed(mean_norms))
+        # column_index = mean_norms.index(min(mean_norms))
 
         print("\rSearching Columns: Copying Column: {}".format(column_index), end="")
 
