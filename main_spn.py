@@ -279,10 +279,8 @@ def columnSearch(device, previous_columns, model, column_config, dataloader, nr_
 
                     optimizer.zero_grad()
 
-                    if column_search:
-                        likelihood = test_model(data)
-                    else:
-                        likelihood, _ = test_model(data, prev_column_outputs=[])
+                    likelihood, _ = test_model(data, prev_column_outputs=[])
+
                     prior = torch.log(torch.tensor(1 / task_size))  # p(y)
                     marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
                     posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
