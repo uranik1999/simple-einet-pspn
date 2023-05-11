@@ -125,6 +125,7 @@ def main():
             # Load optimizer
             loss = checkpoint['loss']
 
+        previous_columns = []
         for task in range(task_progress, num_tasks):
             # Get training data for current task
             train_dataloader, test_dataloader = get_datasets(dataset, task_size, task, task_intersection, train_batch_size, test_batch_size)
@@ -133,7 +134,18 @@ def main():
             test_data, test_labels = test_data.to(device), test_labels.to(device)
 
             if epoch_progress == 0:
+                if task != 0:
+                    previous_columns.append(spn)
                 spn = EinetColumn(config, column_index=0).to(device)
+
+                if column_search or leaf_search or isolated_column_search:
+                    print("Searching Columns: ", end="")
+                    column_index, mean_losses = columnSearch(device, previous_columns, spn, config, train_dataloader,
+                                                                 num_search_batches, loss, leaf_search,
+                                                                 isolated_column_search, column_search, trained_search,
+                                                                 num_training_epochs, lr, task_size)
+                    columns.append(column_index)
+                    column_losses.append(mean_losses)
 
                 losses.append([])
                 accuracies.append([])
@@ -210,6 +222,115 @@ def main():
 
             print()
             epoch_progress = 0
+
+
+
+def columnSearch(device, previous_columns, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_epochs, lr, task_size):
+    with torch.no_grad():
+
+        test_model = EinetColumn(column_config, column_index=0).to(device) # column_index = 0 to exclude lateral connections
+
+        mean_losses = []
+        mean_norms = []
+        for column in reversed(previous_columns):
+            print("\rSearching Columns: Building Column {}".format(column.column_index), end="")
+            if column_search:
+                column_state_dict = column.state_dict()
+                test_model.load_state_dict(column_state_dict)
+            elif leaf_search:
+                test_model.leaf.load_state_dict(column.leaf.state_dict())
+
+            if trained_search:
+                with torch.enable_grad():
+
+                    optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
+
+                    for epoch in range(nr_training_epochs):
+                        for batch, (data, labels) in enumerate(dataloader):
+                            data = data.to(device)
+                            labels = labels.to(device)
+
+                            likelihood, _ = test_model(data, prev_column_outputs=[])
+
+                            prior = torch.log(torch.tensor(1 / task_size))  # p(y)
+                            marginal = (likelihood + prior).logsumexp(-1).unsqueeze(
+                                1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                            posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+
+                            err = loss(posterior, labels)
+                            err.backward()
+                            optimizer.step()
+
+                        print("\rSearching Columns: Training Column {} - Epoch {} / {} - Loss {}".format(column.column_index, epoch + 1, nr_training_epochs, err.item()), end="")
+
+            print()
+
+            with torch.enable_grad():
+
+                optimizer = torch.optim.Adam(test_model.parameters(), lr=lr)
+                losses = []
+                norms = []
+                for batch, (data, labels) in enumerate(dataloader):
+                    if batch >= nr_search_batches:
+                        break
+
+                    data = data.to(device)
+                    labels = labels.to(device)
+
+
+                    optimizer.zero_grad()
+
+                    if column_search:
+                        likelihood = test_model(data)
+                    else:
+                        likelihood, _ = test_model(data, prev_column_outputs=[])
+                    prior = torch.log(torch.tensor(1 / task_size))  # p(y)
+                    marginal = (likelihood + prior).logsumexp(-1).unsqueeze(1)  # p(x) = sum(p(x, y)) = sum(p(x|y) * p(y))
+                    posterior = likelihood + prior - marginal  # p(y|x) = p(x|y) * p(y) / p(x)
+
+                    err = loss(posterior, labels)
+                    err.backward()
+
+                    grad_norms = []
+                    for param in test_model.parameters():
+                        if param.requires_grad:
+                            grad_norms.append(param.grad.norm())
+
+                    norms.append(sum(grad_norms) / len(grad_norms))
+                    losses.append(err)
+
+                    print("\rSearching Columns: Testing Column {} - Batch {} / {} - Loss {} - Norm {}".format(column.column_index,
+                                                                                                    batch,
+                                                                                                    nr_training_epochs,
+                                                                                                    losses[-1], norms[-1]), end="")
+
+            mean_loss = sum(losses) / len(losses)
+            mean_losses.append(mean_loss)
+
+            mean_norm = sum(norms) / len(norms)
+            mean_norms.append(mean_loss)
+
+            print("\rSearching Columns: Tested Column {} - Mean Loss {} - Mean Norm {}".format(column.column_index, mean_loss, mean_norm), end="")
+            print()
+
+        # mean_losses = list(reversed(mean_losses))
+        # column_index = mean_losses.index(min(mean_losses))
+        # column_index = 0
+        mean_norms = list(reversed(mean_norms))
+        column_index = mean_norms.index(min(mean_norms))
+
+        print("\rSearching Columns: Copying Column: {}".format(column_index), end="")
+
+        if column_search:
+            column = previous_columns[column_index]
+            column_state_dict = column.state_dict()
+            model.load_state_dict(column_state_dict)
+        elif leaf_search:
+            model.leaf.load_state_dict(previous_columns[column_index].leaf.state_dict())
+
+        print()
+    return column_index, mean_losses
+
 
 
 if __name__ == "__main__":
