@@ -134,9 +134,8 @@ def main():
             test_data, test_labels = test_data.to(device), test_labels.to(device)
 
             if epoch_progress == 0:
-                if task != 0:
-                    previous_columns.append(spn)
                 spn = EinetColumn(config, column_index=0).to(device)
+                previous_columns.append(spn)
 
                 if column_search or leaf_search or isolated_column_search:
                     print("Searching Columns: ", end="")
@@ -222,7 +221,7 @@ def main():
 
             print()
             epoch_progress = 0
-
+            previous_columns[-1] = spn
 
 
 def columnSearch(device, previous_columns, model, column_config, dataloader, nr_search_batches, loss, leaf_search, isolated_column_search, column_search, trained_search, nr_training_epochs, lr, task_size):
